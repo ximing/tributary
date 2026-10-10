@@ -1,34 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { CircleHelp, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Settings, Sun } from 'lucide-react';
-import { useTheme, toggleTheme } from '../../lib/theme.js';
+import { CircleHelp, LogOut, Moon, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings, Sun } from 'lucide-react';
+import { toggleTheme, useTheme } from '../../lib/theme.js';
 import { toggleRail, useRailCollapsed } from '../../lib/rail.js';
 import { useSession } from '../../store/session.js';
 import { useWorkspace } from '../../store/workspace.js';
 import { UserAvatar } from '../UserAvatar.js';
 import { ConversationList } from './ConversationList.js';
-import { SearchBox } from './SearchBox.js';
+import { SearchDialog } from './SearchDialog.js';
 
 export function Rail() {
   const newConversation = useWorkspace((state) => state.newConversation);
-  const setHelpOpen = useWorkspace((state) => state.setHelpOpen);
-  const user = useSession((state) => state.user);
-  const logout = useSession((state) => state.logout);
-  const theme = useTheme();
+  const searchOpen = useWorkspace((state) => state.searchOpen);
+  const setSearchOpen = useWorkspace((state) => state.setSearchOpen);
   const collapsed = useRailCollapsed();
-  const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const settingsParam = params.get('settings');
-  const settingsOpen = settingsParam !== null;
   const [creating, setCreating] = useState(false);
-
-  const openSettings = (section: string) => {
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      next.set('settings', section);
-      return next;
-    });
-  };
 
   return (
     <aside className={`rail${collapsed ? ' is-collapsed' : ''}`} aria-label="对话列表">
@@ -40,16 +26,30 @@ export function Rail() {
             <p>问题长成一棵树</p>
           </div>
         </header>
-        <button
-          type="button"
-          className="rail-collapse"
-          title={collapsed ? '展开侧栏 ]' : '收起侧栏 ['}
-          aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
-          aria-expanded={!collapsed}
-          onClick={toggleRail}
-        >
-          {collapsed ? <PanelLeftOpen size={15} aria-hidden /> : <PanelLeftClose size={15} aria-hidden />}
-        </button>
+        <div className="rail-tools">
+          <button
+            type="button"
+            id="rail-search-button"
+            className={`rail-icon${searchOpen ? ' is-on' : ''}`}
+            title="搜索 ⌘K"
+            aria-label="搜索"
+            aria-haspopup="dialog"
+            aria-expanded={searchOpen}
+            onClick={() => setSearchOpen(!searchOpen)}
+          >
+            <Search size={15} aria-hidden />
+          </button>
+          <button
+            type="button"
+            className="rail-icon"
+            title={collapsed ? '展开侧栏 ]' : '收起侧栏 ['}
+            aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
+            aria-expanded={!collapsed}
+            onClick={toggleRail}
+          >
+            {collapsed ? <PanelLeftOpen size={15} aria-hidden /> : <PanelLeftClose size={15} aria-hidden />}
+          </button>
+        </div>
       </div>
       <button
         type="button"
@@ -64,54 +64,126 @@ export function Rail() {
         <Plus size={15} aria-hidden />
         <span className="btn-text">新对话</span>
       </button>
-      <SearchBox />
       <ConversationList />
-      <div className="rail-foot">
+      <UserMenu />
+      <SearchDialog />
+    </aside>
+  );
+}
+
+function UserMenu() {
+  const user = useSession((state) => state.user);
+  const logout = useSession((state) => state.logout);
+  const theme = useTheme();
+  const setHelpOpen = useWorkspace((state) => state.setHelpOpen);
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const settingsOpen = params.get('settings') !== null;
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [open]);
+
+  const openSettings = () => {
+    setOpen(false);
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('settings', 'account');
+      return next;
+    });
+  };
+
+  return (
+    <div className="rail-foot" ref={ref}>
+      <div className="rail-user">
         <button
           type="button"
-          className={`rail-row${settingsOpen ? ' is-on' : ''}`}
-          aria-expanded={settingsOpen}
-          aria-haspopup="dialog"
-          title="设置 ⌘,"
-          onClick={() => openSettings('account')}
+          className={`rail-user-btn${open ? ' is-on' : ''}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          title="账号菜单"
+          onClick={() => setOpen((current) => !current)}
         >
-          <Settings size={15} aria-hidden />
-          <span className="row-text">设置</span>
-          <span className="grow">⌘,</span>
+          <UserAvatar user={user} size={26} />
+          <span className="name">{user?.displayName || user?.email}</span>
         </button>
-        <button type="button" className="rail-row" title="切换主题 ⇧D" onClick={toggleTheme}>
-          {theme === 'dark' ? <Sun size={15} aria-hidden /> : <Moon size={15} aria-hidden />}
-          <span className="row-text">{theme === 'dark' ? '切换亮色' : '切换暗色'}</span>
-          <span className="grow">⇧D</span>
+        <button
+          type="button"
+          className={`rail-user-settings${settingsOpen ? ' is-on' : ''}`}
+          aria-haspopup="dialog"
+          aria-expanded={settingsOpen}
+          title="设置 ⌘,"
+          onClick={openSettings}
+        >
+          <Settings size={14} aria-hidden />
+          <span>设置</span>
         </button>
-        <button type="button" className="rail-row" title="快捷键 ?" onClick={() => setHelpOpen(true)}>
-          <CircleHelp size={15} aria-hidden />
-          <span className="row-text">快捷键</span>
-          <span className="grow">?</span>
-        </button>
-        <div className="rail-user">
-          <button
-            type="button"
-            className="rail-user-btn"
-            title="账号设置"
-            onClick={() => openSettings('account')}
-          >
-            <UserAvatar user={user} size={26} />
-            <span className="name">{user?.displayName || user?.email}</span>
-          </button>
-          <button
-            type="button"
-            className="rail-user-logout"
-            aria-label="退出登录"
-            title="退出登录"
-            onClick={() => {
-              void logout().then(() => navigate('/'));
-            }}
-          >
-            <LogOut size={14} aria-hidden />
-          </button>
-        </div>
+        {open ? (
+          <div className="pop user-menu" role="menu" aria-label="账号菜单">
+            <button type="button" className="menu-item" role="menuitem" onClick={openSettings}>
+              <Settings size={14} aria-hidden />
+              设置
+              <kbd>⌘,</kbd>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                toggleTheme();
+              }}
+            >
+              {theme === 'dark' ? <Sun size={14} aria-hidden /> : <Moon size={14} aria-hidden />}
+              {theme === 'dark' ? '切换亮色' : '切换暗色'}
+              <kbd>⇧D</kbd>
+            </button>
+            <button
+              type="button"
+              className="menu-item"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                setHelpOpen(true);
+              }}
+            >
+              <CircleHelp size={14} aria-hidden />
+              快捷键
+              <kbd>?</kbd>
+            </button>
+            <div className="sep" />
+            <button
+              type="button"
+              className="menu-item is-danger"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                void logout().then(() => navigate('/'));
+              }}
+            >
+              <LogOut size={14} aria-hidden />
+              退出登录
+            </button>
+          </div>
+        ) : null}
       </div>
-    </aside>
+    </div>
   );
 }

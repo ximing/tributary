@@ -1,4 +1,4 @@
-import type { ModelProvider } from '@tributary/domain';
+import type { ModelProvider, StickerId } from '@tributary/domain';
 
 export interface PublicUser {
   id: string;
@@ -24,6 +24,14 @@ export interface ConversationNode {
   model: string | null;
   collapsed: boolean;
   position: number;
+  note: string | null;
+  sticker: string | null;
+}
+
+export interface NodeLink {
+  id: string;
+  sourceId: string;
+  targetId: string;
 }
 
 export interface ModelConfig {
@@ -172,7 +180,7 @@ export function createConversation(title?: string): Promise<Conversation> {
   }).then((response) => read(response));
 }
 
-export function loadConversation(id: string): Promise<{ conversation: Conversation; nodes: ConversationNode[] }> {
+export function loadConversation(id: string): Promise<{ conversation: Conversation; nodes: ConversationNode[]; links: NodeLink[] }> {
   return request(`/api/conversations/${id}`).then((response) => read(response));
 }
 
@@ -199,12 +207,110 @@ export function setCollapsed(id: string, collapsed: boolean): Promise<Conversati
   }).then((response) => read(response));
 }
 
-export function regenerateNode(id: string): Promise<ConversationNode> {
-  return request(`/api/nodes/${id}/regenerate`, { method: 'POST' }).then((response) => read(response));
+export function renameNode(id: string, question: string): Promise<ConversationNode> {
+  return request(`/api/nodes/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ question }),
+  }).then((response) => read(response));
+}
+
+export function moveNode(id: string, parentId: string | null, index: number): Promise<{ nodes: ConversationNode[] }> {
+  return request(`/api/nodes/${id}/move`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ parentId, index }),
+  }).then((response) => read(response));
+}
+
+export function copyNode(id: string): Promise<{ nodes: ConversationNode[]; rootId: string }> {
+  return request(`/api/nodes/${id}/copy`, { method: 'POST' }).then((response) => read(response));
+}
+
+export function setCollapsedMany(
+  conversationId: string,
+  changes: { id: string; collapsed: boolean }[],
+): Promise<{ nodes: ConversationNode[] }> {
+  return request(`/api/conversations/${conversationId}/collapsed`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ changes }),
+  }).then((response) => read(response));
+}
+
+export function restoreNodes(conversationId: string, nodes: ConversationNode[]): Promise<{ nodes: ConversationNode[] }> {
+  return request(`/api/conversations/${conversationId}/restore`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ nodes }),
+  }).then((response) => read(response));
+}
+
+export function regenerateNode(
+  id: string,
+  override?: { providerId: string; model: string },
+): Promise<ConversationNode> {
+  return request(`/api/nodes/${id}/regenerate`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(override ?? {}),
+  }).then((response) => read(response));
+}
+
+export function insertOutline(
+  conversationId: string,
+  parentId: string | null,
+  items: { question: string; depth: number }[],
+): Promise<{ nodes: ConversationNode[]; created: ConversationNode[] }> {
+  return request(`/api/conversations/${conversationId}/outline`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ parentId, items }),
+  }).then((response) => read(response));
 }
 
 export function deleteNode(id: string): Promise<void> {
   return request(`/api/nodes/${id}`, { method: 'DELETE' }).then((response) => read(response));
+}
+
+export function cancelNode(id: string, reply?: string): Promise<ConversationNode> {
+  return request(`/api/nodes/${id}/cancel`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(reply ? { reply } : {}),
+  }).then((response) => read(response));
+}
+
+export function setNote(id: string, note: string | null): Promise<ConversationNode> {
+  return request(`/api/nodes/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ note }),
+  }).then((response) => read(response));
+}
+
+export function setSticker(id: string, sticker: StickerId | null): Promise<ConversationNode> {
+  return request(`/api/nodes/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sticker }),
+  }).then((response) => read(response));
+}
+
+export function createLink(
+  conversationId: string,
+  sourceId: string,
+  targetId: string,
+): Promise<{ link: NodeLink; created: boolean }> {
+  return request(`/api/conversations/${conversationId}/links`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ sourceId, targetId }),
+  }).then((response) => read(response));
+}
+
+export function deleteLink(id: string): Promise<void> {
+  return request(`/api/links/${id}`, { method: 'DELETE' }).then((response) => read(response));
 }
 
 export function listModelConfigs(): Promise<{ configs: ModelConfig[] }> {

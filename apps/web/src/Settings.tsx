@@ -1,7 +1,6 @@
 import { AgentSettingsSection } from './components/AgentSettingsSection.js';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   Bot,
   ChartColumn,
   CircleCheck,
@@ -16,6 +15,7 @@ import {
   SunMoon,
   Trash2,
   User,
+  X,
 } from 'lucide-react';
 import {
   MODEL_PROVIDERS,
@@ -91,8 +91,17 @@ export function SettingsDialog({
   }, [onClose]);
 
   return (
-    <div className="settings-overlay">
-      <div className="settings-page" role="dialog" aria-modal="true" aria-label="设置">
+    <div className="settings-overlay" onMouseDown={onClose}>
+      <div
+        className="settings-page"
+        role="dialog"
+        aria-modal="true"
+        aria-label="设置"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="settings-close" aria-label="关闭设置" onClick={onClose}>
+          <X size={16} aria-hidden />
+        </button>
         <nav className="settings-nav" aria-label="设置分区">
           <p className="settings-nav-title">设置</p>
           {NAV_GROUPS.map((group) => (
@@ -103,7 +112,7 @@ export function SettingsDialog({
                   key={item.id}
                   type="button"
                   className={section === item.id ? 'is-on' : undefined}
-                  aria-current={section === item.id ? 'page' : undefined}
+                  aria-current={section === item.id ? 'true' : undefined}
                   onClick={() => onSection(item.id)}
                 >
                   <item.icon size={15} aria-hidden />
@@ -116,10 +125,6 @@ export function SettingsDialog({
             <UserAvatar user={user} size={24} />
             <span>{user?.displayName || user?.email}</span>
           </div>
-          <button type="button" className="settings-nav-back" onClick={onClose}>
-            <ArrowLeft size={15} aria-hidden />
-            返回画板
-          </button>
         </nav>
         <div className="settings-body">
           <div className="settings-col">

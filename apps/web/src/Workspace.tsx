@@ -24,6 +24,13 @@ export function Workspace() {
     return initStreamManager();
   }, [init]);
 
+  useEffect(() => {
+    if (!settingsSection) return;
+    const state = useWorkspace.getState();
+    if (state.searchOpen) state.setSearchOpen(false);
+    if (state.helpOpen) state.setHelpOpen(false);
+  }, [settingsSection]);
+
   useHotkeys({
     openSettings: useCallback(() => {
       setParams((current) => {

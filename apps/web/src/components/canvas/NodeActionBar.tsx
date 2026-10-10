@@ -14,7 +14,7 @@ export function NodeActionBar({ id }: { id: string }) {
     <div className="node-bar nodrag" role="toolbar" aria-label="节点操作">
       <button
         type="button"
-        title="添加子问题 (Tab)"
+        title="添加子问题 (⌘Enter)"
         onClick={(event) => {
           event.stopPropagation();
           openDraft('child', id);
@@ -52,7 +52,7 @@ export function NodeActionBar({ id }: { id: string }) {
         aria-label="更多操作"
         onClick={(event) => {
           event.stopPropagation();
-          setMenu({ x: event.clientX, y: event.clientY });
+          setMenu({ x: event.clientX, y: event.clientY, target: 'node' });
         }}
       >
         <MoreHorizontal size={13} aria-hidden />

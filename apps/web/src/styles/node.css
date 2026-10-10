@@ -6,16 +6,89 @@
   border-radius: var(--r-m);
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: var(--shadow-1);
+  /* 前两层留给悬停光晕。层数保持一致，box-shadow 过渡才不会停在半路。 */
+  box-shadow:
+    0 0 0 0 transparent,
+    0 0 0 transparent,
+    var(--shadow-1);
+  cursor: grab;
   transition:
     border-color 160ms var(--ease),
     box-shadow 160ms var(--ease);
+}
+
+.node-card.is-dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+  user-select: none;
+}
+
+.node-card.is-drop-child {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    0 0 0 transparent,
+    var(--shadow-1);
+}
+
+.node-card.is-drop-before::before,
+.node-card.is-drop-after::after {
+  content: '';
+  position: absolute;
+  z-index: 2;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+
+.node-card.is-drop-before::before {
+  top: -6px;
+}
+
+.node-card.is-drop-after::after {
+  bottom: -6px;
+}
+
+.node-card.is-tb.is-drop-before::before,
+.node-card.is-tb.is-drop-after::after {
+  top: 8px;
+  bottom: 8px;
+  left: auto;
+  right: auto;
+  width: 3px;
+  height: auto;
+}
+
+.node-card.is-tb.is-drop-before::before {
+  left: -6px;
+}
+
+.node-card.is-tb.is-drop-after::after {
+  right: -6px;
+}
+
+.node-card:hover:not(.is-dragging):not(.is-selected):not(.is-drop-child):not(.is-link-source):not(.is-find) {
+  box-shadow:
+    0 0 0 5px var(--accent-soft),
+    0 0 22px var(--ring),
+    var(--shadow-1);
 }
 
 .node-card.is-selected {
   border-color: var(--accent);
   box-shadow:
     0 0 0 3px var(--accent-soft),
+    0 0 0 transparent,
+    var(--shadow-1);
+}
+
+.node-card.is-selected:hover:not(.is-dragging) {
+  box-shadow:
+    0 0 0 4px var(--accent-soft),
+    0 0 18px var(--ring),
     var(--shadow-1);
 }
 
@@ -36,6 +109,20 @@
   overflow-wrap: break-word;
 }
 
+.node-question-input {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  resize: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  outline: none;
+  cursor: text;
+}
+
 .node-meta {
   display: flex;
   align-items: center;
@@ -46,7 +133,14 @@
   color: var(--ink-3);
 }
 
-/* 摘要：三行截断 */
+/* 摘要：三行截断。回答可以选择，用来划词追问。卡片其余部分仍由画布禁止选择。 */
+.react-flow__node .node-excerpt,
+.react-flow__node .node-reply,
+.react-flow__node .node-note {
+  user-select: text;
+  cursor: text;
+}
+
 .node-excerpt {
   margin: var(--s2) 0 0;
   padding-top: var(--s2);
@@ -138,6 +232,91 @@
   overflow-wrap: break-word;
 }
 
+.node-card.is-find {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 transparent,
+    var(--shadow-1);
+}
+
+.node-card.is-link-source {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px var(--accent-soft),
+    0 0 0 transparent,
+    var(--shadow-1);
+}
+
+.node-sticker {
+  margin-right: 6px;
+  color: var(--accent-ink);
+}
+
+mark.find-hit {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.node-note {
+  margin: var(--s2) 0 0;
+  padding: var(--s2);
+  border-left: 2px solid var(--accent);
+  border-radius: 0 var(--r-s) var(--r-s) 0;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  cursor: text;
+  user-select: text;
+}
+
+.node-note-label {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.node-note-input {
+  width: 100%;
+  resize: vertical;
+  border: 0;
+  font: inherit;
+  color: var(--ink);
+}
+
+.node-pending {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s2);
+}
+
+.node-pending .node-thinking {
+  margin: 0;
+}
+
+.node-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.node-stop:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .node-retry {
   display: inline-flex;
   align-items: center;
@@ -164,6 +343,7 @@
 .node-btn {
   position: absolute;
   z-index: 2;
+  cursor: pointer;
   width: 26px;
   height: 26px;
   display: grid;

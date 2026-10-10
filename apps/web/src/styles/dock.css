@@ -40,6 +40,16 @@
   color: var(--accent-ink);
 }
 
+.dock > button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.dock > button:disabled:hover {
+  background: none;
+  color: var(--ink-2);
+}
+
 .dock .zoom-label {
   min-width: 52px;
   font-family: var(--font-mono);

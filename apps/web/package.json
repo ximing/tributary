@@ -12,6 +12,7 @@
   "dependencies": {
     "@tributary/domain": "workspace:*",
     "@xyflow/react": "^12.8.2",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^1.54.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

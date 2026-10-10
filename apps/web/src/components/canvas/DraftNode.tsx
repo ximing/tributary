@@ -21,13 +21,17 @@ export const DraftNodeView = memo(function DraftNodeView({ id }: NodeProps<Draft
   const commitDraft = useWorkspace((state) => state.commitDraft);
   const cancelDraft = useWorkspace((state) => state.cancelDraft);
   const detachDraft = useWorkspace((state) => state.detachDraft);
-  const [text, setText] = useState('');
+  const [text, setText] = useState(draft?.seed ?? '');
   const { layout } = useCanvasSettings();
   const ref = useNodeSize<HTMLDivElement>(id);
   // autoFocus 在 React Flow 节点里不可靠（节点挂载时机/页面焦点），用 ref 回调兜底
   const focusRef = useCallback((element: HTMLTextAreaElement | null) => {
     if (element && document.activeElement !== element) {
-      requestAnimationFrame(() => element.focus());
+      requestAnimationFrame(() => {
+        element.focus();
+        const end = element.value.length;
+        element.setSelectionRange(end, end);
+      });
     }
   }, []);
 
@@ -55,7 +59,7 @@ export const DraftNodeView = memo(function DraftNodeView({ id }: NodeProps<Draft
       <textarea
         ref={focusRef}
         className="draft-input nodrag"
-        rows={2}
+        rows={Math.min(8, Math.max(2, text.split('\n').length))}
         placeholder={draft.anchorId ? '继续追问…' : '输入你的问题…'}
         aria-label="新问题"
         value={text}

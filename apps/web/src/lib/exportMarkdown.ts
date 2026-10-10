@@ -1,30 +1,18 @@
+import { toOutlineMarkdown } from '@tributary/domain';
 import type { ConversationNode } from '../api/client.js';
 
-/** 整棵树导出为 Markdown 大纲：标题层级 = 树深度（最深 H6），回答原文跟在其后 */
+/** 整棵树，或 rootId 那一枝，导出为 Markdown 大纲。 */
 export function conversationToMarkdown(
   title: string,
   nodes: Record<string, ConversationNode>,
   nodeOrder: string[],
+  rootId?: string | null,
 ): string {
-  const childrenOf = new Map<string | null, ConversationNode[]>();
-  for (const id of nodeOrder) {
+  const list = nodeOrder.flatMap((id) => {
     const node = nodes[id];
-    if (!node) continue;
-    const list = childrenOf.get(node.parentId) ?? [];
-    list.push(node);
-    childrenOf.set(node.parentId, list);
-  }
-  const lines: string[] = [`# ${title}`, ''];
-  const walk = (parentId: string | null, depth: number) => {
-    for (const node of childrenOf.get(parentId) ?? []) {
-      const heading = '#'.repeat(Math.min(depth + 1, 6));
-      lines.push(`${heading} ${node.question}`, '');
-      if (node.reply) lines.push(node.reply, '');
-      walk(node.id, depth + 1);
-    }
-  };
-  walk(null, 1);
-  return lines.join('\n');
+    return node ? [node] : [];
+  });
+  return toOutlineMarkdown(title, list, rootId);
 }
 
 export function downloadMarkdown(title: string, content: string): void {

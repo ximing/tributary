@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { CircleHelp, FileDown, Settings2 } from 'lucide-react';
+import { CircleHelp, FileDown, ImageDown, Settings2 } from 'lucide-react';
+import { canvasExportPng } from '../../lib/canvasBus.js';
 import { EDGE_STYLE_OPTIONS, setCanvasSettings, useCanvasSettings, type EdgeStyle } from '../../lib/canvasSettings.js';
 import { conversationToMarkdown, downloadMarkdown } from '../../lib/exportMarkdown.js';
 import { useWorkspace } from '../../store/workspace.js';
@@ -19,21 +20,39 @@ function EdgeGlyph({ style }: { style: EdgeStyle }) {
   );
 }
 
+function BranchExport({ onExport }: { onExport: (rootId: string) => void }) {
+  const rootId = useWorkspace((state) => state.focusId ?? state.selectedId);
+  return (
+    <button
+      type="button"
+      className="menu-item"
+      role="menuitem"
+      disabled={!rootId}
+      onClick={() => {
+        if (rootId) onExport(rootId);
+      }}
+    >
+      导出这一枝
+    </button>
+  );
+}
+
 /** 画布右上角工具条：提示 + 导出 Markdown + 画布设置 */
 export function CanvasToolbar() {
   const settings = useCanvasSettings();
   const setHelpOpen = useWorkspace((state) => state.setHelpOpen);
   const hasNodes = useWorkspace((state) => state.nodeOrder.length > 0);
-  const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<'settings' | 'export' | null>(null);
+  const [exporting, setExporting] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!panel) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setOpen(false);
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) setPanel(null);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === 'Escape') setPanel(null);
     };
     window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('keydown', onKey);
@@ -41,13 +60,23 @@ export function CanvasToolbar() {
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [panel]);
 
-  const exportMarkdown = () => {
+  const exportMarkdown = (rootId?: string | null) => {
     const state = useWorkspace.getState();
     if (!state.activeId || state.nodeOrder.length === 0) return;
-    const title = state.conversations.find((item) => item.id === state.activeId)?.title ?? '支流对话';
-    downloadMarkdown(title, conversationToMarkdown(title, state.nodes, state.nodeOrder));
+    const branch = rootId ? state.nodes[rootId] : undefined;
+    const title = branch
+      ? branch.question.trim().slice(0, 40) || '这一枝'
+      : (state.conversations.find((item) => item.id === state.activeId)?.title ?? '支流对话');
+    downloadMarkdown(title, conversationToMarkdown(title, state.nodes, state.nodeOrder, rootId));
+    setPanel(null);
+  };
+
+  const exportPng = () => {
+    if (exporting || !hasNodes) return;
+    setExporting(true);
+    void canvasExportPng().finally(() => setExporting(false));
   };
 
   return (
@@ -58,25 +87,44 @@ export function CanvasToolbar() {
       </button>
       <button
         type="button"
-        className="tool-btn"
+        className={`tool-btn${panel === 'export' ? ' is-active' : ''}`}
         title="导出 Markdown"
         aria-label="导出 Markdown"
+        aria-expanded={panel === 'export'}
         disabled={!hasNodes}
-        onClick={exportMarkdown}
+        onClick={() => setPanel((value) => (value === 'export' ? null : 'export'))}
       >
         <FileDown size={14} aria-hidden />
       </button>
       <button
         type="button"
-        className={`tool-btn${open ? ' is-active' : ''}`}
+        className="tool-btn"
+        title="导出图片"
+        aria-label="导出图片"
+        disabled={!hasNodes || exporting}
+        onClick={exportPng}
+      >
+        <ImageDown size={14} aria-hidden />
+      </button>
+      <button
+        type="button"
+        className={`tool-btn${panel === 'settings' ? ' is-active' : ''}`}
         title="画布设置"
         aria-label="画布设置"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        aria-expanded={panel === 'settings'}
+        onClick={() => setPanel((value) => (value === 'settings' ? null : 'settings'))}
       >
         <Settings2 size={14} aria-hidden />
       </button>
-      {open ? (
+      {panel === 'export' ? (
+        <div className="settings-pop export-pop" role="menu" aria-label="导出 Markdown">
+          <button type="button" className="menu-item" role="menuitem" onClick={() => exportMarkdown(null)}>
+            导出整棵对话
+          </button>
+          <BranchExport onExport={exportMarkdown} />
+        </div>
+      ) : null}
+      {panel === 'settings' ? (
         <div className="settings-pop" role="dialog" aria-label="画布设置">
           <p className="settings-label">连线样式</p>
           <div className="settings-options">

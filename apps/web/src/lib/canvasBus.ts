@@ -6,6 +6,7 @@ export interface CanvasHandlers {
   fit: () => void;
   zoomIn: () => void;
   zoomOut: () => void;
+  exportPng: () => Promise<void>;
 }
 
 let handlers: CanvasHandlers | null = null;
@@ -24,4 +25,8 @@ export function canvasZoomIn(): void {
 
 export function canvasZoomOut(): void {
   handlers?.zoomOut();
+}
+
+export function canvasExportPng(): Promise<void> {
+  return handlers?.exportPng() ?? Promise.resolve();
 }

@@ -3,14 +3,28 @@ import { SHORTCUTS } from '@tributary/domain';
 import { useWorkspace } from '../store/workspace.js';
 
 const GROUPS: { title: string; ids: string[] }[] = [
-  { title: '编辑', ids: ['child', 'sibling', 'toggle'] },
+  { title: '编辑', ids: ['indent', 'sibling', 'toggle', 'collapse'] },
   { title: '导航', ids: ['up', 'down', 'left', 'right'] },
   { title: '视图', ids: ['deselect', 'help'] },
   { title: '应用', ids: [] },
 ];
 
 const EXTRA: { group: string; hint: string; label: string }[] = [
+  { group: '编辑', hint: '⇧ Tab', label: '升一级' },
+  { group: '编辑', hint: '⌘ Enter', label: '添加子问题' },
+  { group: '编辑', hint: '⌘ C', label: '复制问题' },
+  { group: '编辑', hint: '⌘ ⇧ C', label: '复制回答' },
+  { group: '编辑', hint: '双击', label: '编辑问题' },
+  { group: '编辑', hint: '⌘ Z', label: '撤回' },
+  { group: '编辑', hint: '⌘ ⇧ Z', label: '重做' },
+  { group: '编辑', hint: '⌘ ↑ / ⌘ ↓', label: '调整同级顺序' },
+  { group: '编辑', hint: '⌘ D', label: '复制这一枝' },
   { group: '编辑', hint: 'Del', label: '删除节点及子分支' },
+  { group: '视图', hint: '⌘ F', label: '在这张图里查找' },
+  { group: '视图', hint: '⌘ G', label: '下一个匹配' },
+  { group: '视图', hint: '⌘ \\', label: '只看这一枝' },
+  { group: '视图', hint: '演示', label: '按树的顺序逐张看' },
+  { group: '编辑', hint: '笔记里 ⌘ Enter', label: '保存笔记' },
   { group: '视图', hint: '滑动', label: '移动画布' },
   { group: '视图', hint: '⌘ 滑动', label: '缩放画布' },
   { group: '视图', hint: '⇧ F', label: '适应视图' },
@@ -19,7 +33,9 @@ const EXTRA: { group: string; hint: string; label: string }[] = [
   { group: '视图', hint: '[ / ]', label: '收起 / 展开侧栏' },
   { group: '应用', hint: '⌘ K', label: '搜索对话' },
   { group: '应用', hint: '⌘ ,', label: '打开设置' },
-  { group: '应用', hint: '双击', label: '画布空白处新建根问题' },
+  { group: '应用', hint: '双击空白', label: '画布空白处新建根问题' },
+  { group: '视图', hint: '右键空白', label: '打开画布菜单' },
+  { group: '编辑', hint: '右键关系线', label: '选中两端或断开' },
 ];
 
 /** `?` 打开的快捷键帮助浮层 */
