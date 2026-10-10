@@ -1,0 +1,29 @@
+{
+  "name": "tributary",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "支流 — 非线性脑图对话",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @tributary/server dev",
+    "dev:web": "pnpm --filter @tributary/web dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @tributary/server start",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "test": "pnpm --filter @tributary/domain test && pnpm --filter @tributary/server test",
+    "test:pg": "pnpm --filter @tributary/server test:pg",
+    "test:agent": "pnpm --filter @tributary/server test:agent",
+    "test:meili": "pnpm --filter @tributary/server test:meili"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "eslint": "^9.28.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.34.0"
+  }
+}
