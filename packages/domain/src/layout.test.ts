@@ -102,6 +102,18 @@ describe('layout', () => {
       expect(rootCenter).toBeCloseTo((aCenter + cCenter) / 2);
     });
 
+    it('uses a tighter vertical rhythm than the horizontal layout', () => {
+      const points = layoutTree(
+        [
+          { id: 'root', parentId: null },
+          { id: 'a', parentId: 'root' },
+        ],
+        { direction: 'tb' },
+      );
+      const byId = new Map(points.map((point) => [point.id, point]));
+      expect(byId.get('a')!.y - byId.get('root')!.y).toBe(256);
+    });
+
     it('stacks layers with gapX as the vertical rhythm', () => {
       const points = layoutTree(
         [

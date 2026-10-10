@@ -1,7 +1,8 @@
 export const SHORTCUTS = [
-  { id: 'child', key: 'Tab', label: '添加子问题', hint: 'Tab' },
+  { id: 'indent', key: 'Tab', label: '收到上一同级下', hint: 'Tab' },
   { id: 'sibling', key: 'Enter', label: '添加同级问题', hint: 'Enter' },
   { id: 'toggle', key: ' ', label: '展开/收起回复', hint: 'Space' },
+  { id: 'collapse', key: '.', label: '折叠/展开子树', hint: '.' },
   { id: 'up', key: 'ArrowUp', label: '上一个节点', hint: '↑' },
   { id: 'down', key: 'ArrowDown', label: '下一个节点', hint: '↓' },
   { id: 'left', key: 'ArrowLeft', label: '移到父节点', hint: '←' },

@@ -29,6 +29,8 @@ export interface LayoutOptions {
 const DEFAULT_HEIGHT = 96;
 const DEFAULT_WIDTH = 280;
 const DEFAULT_GAP_X = 320;
+/** 上下布局的层距。左右布局的横向层距仍是 DEFAULT_GAP_X。 */
+const DEFAULT_GAP_X_TB = 256;
 const DEFAULT_GAP_Y = 40;
 
 /**
@@ -41,9 +43,9 @@ const DEFAULT_GAP_Y = 40;
 export function layoutTree(nodes: readonly LayoutNode[], options: LayoutOptions = {}): LayoutPoint[] {
   const heightOf = options.heightOf ?? (() => DEFAULT_HEIGHT);
   const widthOf = options.widthOf ?? (() => DEFAULT_WIDTH);
-  const gapX = options.gapX ?? DEFAULT_GAP_X;
-  const gapY = options.gapY ?? DEFAULT_GAP_Y;
   const direction = options.direction ?? 'lr';
+  const gapX = options.gapX ?? (direction === 'tb' ? DEFAULT_GAP_X_TB : DEFAULT_GAP_X);
+  const gapY = options.gapY ?? DEFAULT_GAP_Y;
 
   const children = new Map<string | null, string[]>();
   const ids = new Set(nodes.map((node) => node.id));
