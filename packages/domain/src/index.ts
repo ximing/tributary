@@ -10,3 +10,4 @@ export {
   type TreeNode,
 } from './tree.js';
 export { sumUsage, type UsageCall } from './usage.js';
+export { selectionAfterLoad } from './selection.js';

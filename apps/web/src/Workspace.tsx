@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { Link } from 'react-router';
-import { shortcutForKey, shortcutHints } from '@tributary/domain';
+import { selectionAfterLoad, shortcutForKey, shortcutHints } from '@tributary/domain';
 import {
   createConversation,
   createNode,
@@ -36,6 +36,14 @@ export function Workspace() {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [providerForm, setProviderForm] = useState({ name: '', baseUrl: '', apiKey: '', models: '' });
+  const selectionEpoch = useRef(0);
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
+
+  const selectNode = useCallback((id: string | null) => {
+    selectionEpoch.current += 1;
+    setSelectedId(id);
+  }, []);
 
   const refreshList = useCallback(async () => {
     const body = await listConversations();
@@ -48,7 +56,9 @@ export function Workspace() {
   }, []);
 
   const openConversation = useCallback(async (id: string, selectId?: string | null) => {
+    const epoch = ++selectionEpoch.current;
     const body = await loadConversation(id);
+    if (epoch !== selectionEpoch.current) return;
     setActiveId(id);
     setNodes(body.nodes);
     setSelectedId(selectId ?? null);
@@ -71,11 +81,13 @@ export function Workspace() {
       setNotice('先新建一个对话');
       return;
     }
+    const conversationId = activeId;
+    const epoch = selectionEpoch.current;
     setBusy(true);
     setNotice('');
     try {
       const node = await createNode({
-        conversationId: activeId,
+        conversationId,
         question: text,
         relation,
         selectedNodeId: selected,
@@ -83,7 +95,11 @@ export function Workspace() {
         model: chosen.model,
       });
       await refreshList();
-      await openConversation(activeId, node.id);
+      const body = await loadConversation(conversationId);
+      if (activeIdRef.current !== conversationId) return;
+      setNodes(body.nodes);
+      setSelectedId((current) => selectionAfterLoad(epoch, selectionEpoch.current, node.id, current));
+      setMenu(null);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '提问失败');
     } finally {
@@ -272,9 +288,9 @@ export function Workspace() {
             nodes={nodes}
             selectedId={selectedId}
             menu={menu}
-            onSelect={setSelectedId}
+            onSelect={selectNode}
             onContextMenu={(id, x, y) => {
-              setSelectedId(id);
+              selectNode(id);
               setMenu({ x, y });
             }}
             onDismissMenu={() => setMenu(null)}

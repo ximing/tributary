@@ -26,13 +26,25 @@ interface QuestionData extends Record<string, unknown> {
   question: string;
   reply: string | null;
   expanded: boolean;
+  picked: boolean;
+  onSelect: (id: string) => void;
 }
 
 type QuestionFlowNode = Node<QuestionData, 'question'>;
 
-function QuestionNodeView({ data }: NodeProps<QuestionFlowNode>) {
+function QuestionNodeView({ id, data }: NodeProps<QuestionFlowNode>) {
   return (
-    <div className="question-card" role="treeitem" aria-expanded={data.expanded} aria-label={data.question}>
+    <div
+      className="question-card"
+      role="treeitem"
+      aria-expanded={data.expanded}
+      aria-selected={data.picked}
+      aria-label={data.question}
+      onClick={(event) => {
+        event.stopPropagation();
+        data.onSelect(id);
+      }}
+    >
       <Handle type="target" position={Position.Left} />
       <p className="question">{data.question}</p>
       <p className="reply">{data.reply ?? '思考中…'}</p>
@@ -99,6 +111,8 @@ export function Canvas({
         question: node.question,
         reply: node.reply,
         expanded: !node.collapsed,
+        picked: node.id === selectedId,
+        onSelect,
       },
       style: { width: 220, visibility: 'visible' },
     };
@@ -128,6 +142,7 @@ export function Canvas({
         fitView
         minZoom={0.2}
         maxZoom={1.6}
+        nodesDraggable={false}
         nodesConnectable={false}
         proOptions={{ hideAttribution: true }}
       >
