@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { GitBranch, MessageSquare, MoreHorizontal, Trash2 } from 'lucide-react';
 import { relativeTime } from '../../lib/format.js';
-import { useWorkspace } from '../../store/workspace.js';
 import type { Conversation } from '../../api/client.js';
+import { ConversationService } from '../../workspace/conversation.service.js';
 
 interface ConvGroup {
   label: string;
@@ -31,11 +32,8 @@ function groupConversations(conversations: Conversation[]): ConvGroup[] {
   return buckets.filter((bucket) => bucket.items.length > 0);
 }
 
-export function ConversationList() {
-  const conversations = useWorkspace((state) => state.conversations);
-  const activeId = useWorkspace((state) => state.activeId);
-  const openConversation = useWorkspace((state) => state.openConversation);
-  const removeConversation = useWorkspace((state) => state.removeConversation);
+export const ConversationList = observer(function ConversationList() {
+  const conversations = useService(ConversationService);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -55,7 +53,7 @@ export function ConversationList() {
     };
   }, [menuFor]);
 
-  const groups = groupConversations(conversations);
+  const groups = groupConversations(conversations.conversations);
 
   return (
     <div className="conv-scroll" ref={wrapRef}>
@@ -64,12 +62,12 @@ export function ConversationList() {
           <p className="conv-group-label">{group.label}</p>
           <ul className="conversations">
             {group.items.map((conversation) => {
-              const isActive = conversation.id === activeId;
+              const isActive = conversation.id === conversations.activeId;
               return (
                 <li
                   key={conversation.id}
                   className={isActive ? 'is-active' : undefined}
-                  onClick={() => void openConversation(conversation.id)}
+                  onClick={() => void conversations.open(conversation.id)}
                 >
                   {isActive ? (
                     <GitBranch size={15} aria-hidden />
@@ -101,7 +99,7 @@ export function ConversationList() {
                         onClick={(event) => {
                           event.stopPropagation();
                           setMenuFor(null);
-                          void removeConversation(conversation.id);
+                          void conversations.remove(conversation.id);
                         }}
                       >
                         <Trash2 size={14} aria-hidden />
@@ -117,4 +115,4 @@ export function ConversationList() {
       ))}
     </div>
   );
-}
+});

@@ -1,31 +1,32 @@
 import { useEffect, useRef } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { TriangleAlert } from 'lucide-react';
-import { useWorkspace } from '../store/workspace.js';
+import { MapService } from '../workspace/map.service.js';
 
 /** 应用内确认浮层：危险操作（删除子树等）的二次确认。Enter 确认，Esc 取消。 */
-export function ConfirmDialog() {
-  const confirm = useWorkspace((state) => state.confirm);
-  const setConfirm = useWorkspace((state) => state.setConfirm);
+export const ConfirmDialog = observer(function ConfirmDialog() {
+  const map = useService(MapService);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const confirm = map.confirm;
 
   useEffect(() => {
     if (!confirm) return;
     cancelRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       event.stopPropagation();
-      if (event.key === 'Escape') setConfirm(null);
+      if (event.key === 'Escape') map.setConfirm(null);
       if (event.key === 'Enter') {
         confirm.onConfirm();
-        setConfirm(null);
+        map.setConfirm(null);
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [confirm, setConfirm]);
+  }, [confirm, map]);
 
   if (!confirm) return null;
 
-  const close = () => setConfirm(null);
+  const close = () => map.setConfirm(null);
 
   return (
     <div className="help-overlay" onClick={close}>
@@ -58,4 +59,4 @@ export function ConfirmDialog() {
       </div>
     </div>
   );
-}
+});

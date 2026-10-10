@@ -1,43 +1,42 @@
 import { useEffect } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { stickerOf } from '@tributary/domain';
-import { slideIds, useWorkspace } from '../../store/workspace.js';
+import { slideIds } from '../../workspace/map-model.js';
+import { MapService } from '../../workspace/map.service.js';
+import { AnswerBadge } from '../AnswerBadge.js';
 import { NodeMarkdown } from './NodeMarkdown.js';
 
 /** 按树的前序，一张卡片一页。只看这一枝时，只演示这一枝。 */
-export function PresentMode() {
-  const presentId = useWorkspace((state) => state.presentId);
-  const node = useWorkspace((state) => (presentId ? state.nodes[presentId] : undefined));
-  const focusId = useWorkspace((state) => state.focusId);
-  const closePresent = useWorkspace((state) => state.closePresent);
-  const stepPresent = useWorkspace((state) => state.stepPresent);
-  const index = useWorkspace((state) => {
-    if (!state.presentId) return 0;
-    const at = slideIds(state).indexOf(state.presentId);
-    return at < 0 ? 0 : at;
-  });
-  const total = useWorkspace((state) => slideIds(state).length);
+export const PresentMode = observer(function PresentMode() {
+  const map = useService(MapService);
+  const presentId = map.presentId;
+  const node = presentId ? map.nodes[presentId] : undefined;
+  const order = slideIds(map);
+  const at = presentId ? order.indexOf(presentId) : 0;
+  const index = at < 0 ? 0 : at;
+  const total = order.length;
 
   useEffect(() => {
     if (!presentId) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        closePresent();
+        map.closePresent();
         return;
       }
       if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'PageDown' || event.key === ' ') {
         event.preventDefault();
-        stepPresent(1);
+        map.stepPresent(1);
         return;
       }
       if (event.key === 'ArrowLeft' || event.key === 'ArrowUp' || event.key === 'PageUp') {
         event.preventDefault();
-        stepPresent(-1);
+        map.stepPresent(-1);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [presentId, closePresent, stepPresent]);
+  }, [presentId, map]);
 
   if (!presentId || !node) return null;
   const sticker = stickerOf(node.sticker);
@@ -47,9 +46,9 @@ export function PresentMode() {
       <header>
         <span>
           {index + 1} / {total}
-          {focusId ? ' · 这一枝' : ''}
+          {map.focusId ? ' · 这一枝' : ''}
         </span>
-        <button type="button" onClick={() => closePresent()}>
+        <button type="button" onClick={() => map.closePresent()}>
           退出
         </button>
       </header>
@@ -58,6 +57,7 @@ export function PresentMode() {
           {sticker ? <span className="node-sticker">{sticker.mark}</span> : null}
           {node.question}
         </h1>
+        {node.model ? <AnswerBadge providerId={node.providerId} model={node.model} className="present-model" /> : null}
         {node.note ? (
           <blockquote className="present-note">
             <span>笔记</span>
@@ -71,13 +71,13 @@ export function PresentMode() {
         )}
       </article>
       <footer>
-        <button type="button" disabled={index <= 0} onClick={() => stepPresent(-1)}>
+        <button type="button" disabled={index <= 0} onClick={() => map.stepPresent(-1)}>
           上一张
         </button>
-        <button type="button" disabled={index >= total - 1} onClick={() => stepPresent(1)}>
+        <button type="button" disabled={index >= total - 1} onClick={() => map.stepPresent(1)}>
           下一张
         </button>
       </footer>
     </div>
   );
-}
+});

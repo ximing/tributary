@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { Service } from '@rabjs/react';
 import type { LayoutDirection } from '@tributary/domain';
 
 /**
@@ -33,9 +33,8 @@ export const BRANCH_PALETTES: Record<'light' | 'dark', string[]> = {
 
 const STORAGE_KEY = 'tributary-canvas';
 const DEFAULTS: CanvasSettings = { edgeStyle: 'bezier', branchColors: false, layout: 'lr', minimap: true };
-const listeners = new Set<() => void>();
 
-function load(): CanvasSettings {
+function loadSettings(): CanvasSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
@@ -51,28 +50,15 @@ function load(): CanvasSettings {
   }
 }
 
-let current: CanvasSettings = load();
+export class CanvasPrefsService extends Service {
+  settings: CanvasSettings = loadSettings();
 
-export function setCanvasSettings(patch: Partial<CanvasSettings>): void {
-  current = { ...current, ...patch };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
-  } catch {
-    /* 忽略持久化失败 */
+  patch(next: Partial<CanvasSettings>): void {
+    this.settings = { ...this.settings, ...next };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.settings));
+    } catch {
+      /* 忽略持久化失败 */
+    }
   }
-  for (const listener of listeners) listener();
-}
-
-export function getCanvasSettings(): CanvasSettings {
-  return current;
-}
-
-export function useCanvasSettings(): CanvasSettings {
-  return useSyncExternalStore(
-    (onChange) => {
-      listeners.add(onChange);
-      return () => listeners.delete(onChange);
-    },
-    () => current,
-  );
 }

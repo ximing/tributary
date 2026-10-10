@@ -1,10 +1,11 @@
-import { memo, useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { CornerDownRight, SendHorizontal, X } from 'lucide-react';
 import { truncate } from '../../lib/format.js';
 import { useNodeSize } from '../../hooks/useNodeSize.js';
-import { useCanvasSettings } from '../../lib/canvasSettings.js';
-import { useWorkspace } from '../../store/workspace.js';
+import { CanvasPrefsService } from '../../services/canvas-prefs.service.js';
+import { MapService } from '../../workspace/map.service.js';
 import { ModelChip } from '../ModelChip.js';
 
 type DraftFlowNode = Node<Record<string, never>, 'draft'>;
@@ -13,16 +14,13 @@ type DraftFlowNode = Node<Record<string, never>, 'draft'>;
  * 画布内提问：草稿即节点。
  * 子/同级草稿顶部带上下文 chip（× 掉转为根问题）；Enter 提交（Shift+Enter 换行），Esc 取消。
  */
-export const DraftNodeView = memo(function DraftNodeView({ id }: NodeProps<DraftFlowNode>) {
-  const draft = useWorkspace((state) => state.drafts.find((item) => item.tempId === id));
-  const anchorQuestion = useWorkspace((state) =>
-    draft?.anchorId ? (state.nodes[draft.anchorId]?.question ?? null) : null,
-  );
-  const commitDraft = useWorkspace((state) => state.commitDraft);
-  const cancelDraft = useWorkspace((state) => state.cancelDraft);
-  const detachDraft = useWorkspace((state) => state.detachDraft);
+export const DraftNodeView = observer(function DraftNodeView({ id }: NodeProps<DraftFlowNode>) {
+  const map = useService(MapService);
+  const prefs = useService(CanvasPrefsService);
+  const draft = map.drafts.find((item) => item.tempId === id);
+  const anchorQuestion = draft?.anchorId ? (map.nodes[draft.anchorId]?.question ?? null) : null;
   const [text, setText] = useState(draft?.seed ?? '');
-  const { layout } = useCanvasSettings();
+  const layout = prefs.settings.layout;
   const ref = useNodeSize<HTMLDivElement>(id);
   // autoFocus 在 React Flow 节点里不可靠（节点挂载时机/页面焦点），用 ref 回调兜底
   const focusRef = useCallback((element: HTMLTextAreaElement | null) => {
@@ -38,7 +36,7 @@ export const DraftNodeView = memo(function DraftNodeView({ id }: NodeProps<Draft
   if (!draft) return null;
 
   const submit = () => {
-    void commitDraft(id, text);
+    void map.commitDraft(id, text);
   };
 
   return (
@@ -51,7 +49,7 @@ export const DraftNodeView = memo(function DraftNodeView({ id }: NodeProps<Draft
             {draft.relation === 'sibling' ? '与' : '顺着'}「{truncate(anchorQuestion, 14)}」
             {draft.relation === 'sibling' ? '同级' : '继续问'}
           </span>
-          <button type="button" aria-label="取消选中，改为新问题" onClick={() => detachDraft(id)}>
+          <button type="button" aria-label="取消选中，改为新问题" onClick={() => map.detachDraft(id)}>
             <X size={10} aria-hidden />
           </button>
         </p>
@@ -72,7 +70,7 @@ export const DraftNodeView = memo(function DraftNodeView({ id }: NodeProps<Draft
           }
           if (event.key === 'Escape') {
             event.preventDefault();
-            cancelDraft(id);
+            map.cancelDraft(id);
           }
         }}
       />

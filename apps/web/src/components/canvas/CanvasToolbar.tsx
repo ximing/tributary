@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { CircleHelp, FileDown, ImageDown, Settings2 } from 'lucide-react';
 import { canvasExportPng } from '../../lib/canvasBus.js';
-import { EDGE_STYLE_OPTIONS, setCanvasSettings, useCanvasSettings, type EdgeStyle } from '../../lib/canvasSettings.js';
 import { conversationToMarkdown, downloadMarkdown } from '../../lib/exportMarkdown.js';
-import { useWorkspace } from '../../store/workspace.js';
+import { CanvasPrefsService, EDGE_STYLE_OPTIONS, type EdgeStyle } from '../../services/canvas-prefs.service.js';
+import { ConversationService } from '../../workspace/conversation.service.js';
+import { MapService } from '../../workspace/map.service.js';
 
 /** 连线样式的小图示 */
 function EdgeGlyph({ style }: { style: EdgeStyle }) {
@@ -20,8 +22,9 @@ function EdgeGlyph({ style }: { style: EdgeStyle }) {
   );
 }
 
-function BranchExport({ onExport }: { onExport: (rootId: string) => void }) {
-  const rootId = useWorkspace((state) => state.focusId ?? state.selectedId);
+const BranchExport = observer(function BranchExport({ onExport }: { onExport: (rootId: string) => void }) {
+  const map = useService(MapService);
+  const rootId = map.focusId ?? map.selectedId;
   return (
     <button
       type="button"
@@ -35,13 +38,15 @@ function BranchExport({ onExport }: { onExport: (rootId: string) => void }) {
       导出这一枝
     </button>
   );
-}
+});
 
 /** 画布右上角工具条：提示 + 导出 Markdown + 画布设置 */
-export function CanvasToolbar() {
-  const settings = useCanvasSettings();
-  const setHelpOpen = useWorkspace((state) => state.setHelpOpen);
-  const hasNodes = useWorkspace((state) => state.nodeOrder.length > 0);
+export const CanvasToolbar = observer(function CanvasToolbar() {
+  const map = useService(MapService);
+  const conversations = useService(ConversationService);
+  const prefs = useService(CanvasPrefsService);
+  const settings = prefs.settings;
+  const hasNodes = map.nodeOrder.length > 0;
   const [panel, setPanel] = useState<'settings' | 'export' | null>(null);
   const [exporting, setExporting] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -63,13 +68,13 @@ export function CanvasToolbar() {
   }, [panel]);
 
   const exportMarkdown = (rootId?: string | null) => {
-    const state = useWorkspace.getState();
-    if (!state.activeId || state.nodeOrder.length === 0) return;
-    const branch = rootId ? state.nodes[rootId] : undefined;
+    const activeId = conversations.activeId;
+    if (!activeId || map.nodeOrder.length === 0) return;
+    const branch = rootId ? map.nodes[rootId] : undefined;
     const title = branch
       ? branch.question.trim().slice(0, 40) || '这一枝'
-      : (state.conversations.find((item) => item.id === state.activeId)?.title ?? '支流对话');
-    downloadMarkdown(title, conversationToMarkdown(title, state.nodes, state.nodeOrder, rootId));
+      : (conversations.conversations.find((item) => item.id === activeId)?.title ?? '支流对话');
+    downloadMarkdown(title, conversationToMarkdown(title, map.nodes, map.nodeOrder, rootId));
     setPanel(null);
   };
 
@@ -81,7 +86,7 @@ export function CanvasToolbar() {
 
   return (
     <div className="canvas-toolbar" ref={wrapRef}>
-      <button type="button" className="canvas-hint" onClick={() => setHelpOpen(true)} title="快捷键帮助">
+      <button type="button" className="canvas-hint" onClick={() => map.setHelpOpen(true)} title="快捷键帮助">
         <CircleHelp size={12} aria-hidden />
         <kbd>?</kbd> 快捷键 · 双击空白处提问
       </button>
@@ -133,7 +138,7 @@ export function CanvasToolbar() {
                 key={option.value}
                 type="button"
                 className={`settings-option${settings.edgeStyle === option.value ? ' is-active' : ''}`}
-                onClick={() => setCanvasSettings({ edgeStyle: option.value })}
+                onClick={() => prefs.patch({ edgeStyle: option.value })}
               >
                 <EdgeGlyph style={option.value} />
                 <span className="t">{option.label}</span>
@@ -147,7 +152,7 @@ export function CanvasToolbar() {
             className="settings-toggle"
             role="switch"
             aria-checked={settings.branchColors}
-            onClick={() => setCanvasSettings({ branchColors: !settings.branchColors })}
+            onClick={() => prefs.patch({ branchColors: !settings.branchColors })}
           >
             <span>
               分支着色
@@ -159,4 +164,4 @@ export function CanvasToolbar() {
       ) : null}
     </div>
   );
-}
+});

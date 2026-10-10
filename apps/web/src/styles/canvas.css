@@ -697,6 +697,10 @@ span.outline-fold {
   color: var(--ink-3);
 }
 
+.answer-badge.present-model {
+  margin: 0 0 var(--s4);
+}
+
 .export-pop {
   width: 180px;
   padding: 5px;

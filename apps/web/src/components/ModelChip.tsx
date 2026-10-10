@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, ChevronDown } from 'lucide-react';
+import { observer, useService } from '@rabjs/react';
+import { ChevronDown } from 'lucide-react';
 import { PROVIDER_LABELS } from '@tributary/domain';
-import { modelValue, splitModelChoice, useWorkspace } from '../store/workspace.js';
+import { ProviderMark } from './ProviderMark.js';
+import { modelValue, splitModelChoice } from '../workspace/map-model.js';
+import { ModelCatalogService } from '../workspace/model-catalog.service.js';
 
 /**
  * 模型选择 chip：草稿节点与空状态 hero 共用。
  * 点击弹出 provider/model 列表，选择写入全局 modelChoice。
  */
-export function ModelChip() {
-  const configs = useWorkspace((state) => state.configs);
-  const modelChoice = useWorkspace((state) => state.modelChoice);
-  const setModelChoice = useWorkspace((state) => state.setModelChoice);
+export const ModelChip = observer(function ModelChip() {
+  const catalog = useService(ModelCatalogService);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
 
@@ -23,7 +24,9 @@ export function ModelChip() {
     return () => window.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
-  const { model } = splitModelChoice(modelChoice);
+  const modelChoice = catalog.modelChoice;
+  const { providerId, model } = splitModelChoice(modelChoice);
+  const selected = catalog.configs.find((config) => config.id === providerId) ?? null;
 
   return (
     <span ref={wrapRef} style={{ position: 'relative', display: 'inline-flex' }}>
@@ -37,18 +40,18 @@ export function ModelChip() {
           setOpen((value) => !value);
         }}
       >
-        <Bot size={11} aria-hidden />
+        <ProviderMark provider={selected?.provider ?? null} size={12} />
         {model ?? '选择模型'}
         <ChevronDown size={10} aria-hidden />
       </button>
       {open ? (
         <span className="model-menu nodrag" role="menu">
-          {configs.length === 0 ? (
+          {catalog.configs.length === 0 ? (
             <span className="empty" style={{ display: 'block' }}>
               先在设置里添加模型
             </span>
           ) : (
-            configs.map((config) => {
+            catalog.configs.map((config) => {
               const value = modelValue(config.id, config.model);
               return (
                 <button
@@ -58,11 +61,11 @@ export function ModelChip() {
                   className={value === modelChoice ? 'is-active' : undefined}
                   onClick={(event) => {
                     event.stopPropagation();
-                    setModelChoice(value);
+                    catalog.setChoice(value);
                     setOpen(false);
                   }}
                 >
-                  <Bot size={12} aria-hidden />
+                  <ProviderMark provider={config.provider} size={13} />
                   {PROVIDER_LABELS[config.provider]} / {config.model}
                 </button>
               );
@@ -72,4 +75,4 @@ export function ModelChip() {
       ) : null}
     </span>
   );
-}
+});

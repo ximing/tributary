@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { getNodesBounds, getViewportForBounds, useReactFlow } from '@xyflow/react';
-import { cssVar } from '../../lib/theme.js';
-import { useWorkspace } from '../../store/workspace.js';
+import { observer, useService } from '@rabjs/react';
+import { cssVar } from '../../services/theme.service.js';
+import { ConversationService } from '../../workspace/conversation.service.js';
+import { MapService } from '../../workspace/map.service.js';
 
 let exportImpl: (() => Promise<void>) | null = null;
 
@@ -40,15 +42,16 @@ export function runMapExport(): Promise<void> {
  * 把当前脑图（不只是窗口里看得见的那一块）导出成 PNG。
  * 挂在 React Flow 里面，才能读到节点边界。
  */
-export function MapExport() {
+export const MapExport = observer(function MapExport() {
   const reactFlow = useReactFlow();
-  const setNotice = useWorkspace((state) => state.setNotice);
+  const map = useService(MapService);
+  const conversations = useService(ConversationService);
 
   useEffect(() => {
     const exportPng = async () => {
       const flowNodes = reactFlow.getNodes().filter((node) => !node.id.startsWith('draft-'));
       if (flowNodes.length === 0) {
-        setNotice('没有可导出的节点');
+        map.setNotice('没有可导出的节点');
         return;
       }
       const bounds = getNodesBounds(flowNodes);
@@ -81,14 +84,13 @@ export function MapExport() {
           },
         });
         const dataUrl = await rasterizeSvg(svg, width, height, pixelRatio, backgroundColor);
-        const state = useWorkspace.getState();
-        const title = state.conversations.find((item) => item.id === state.activeId)?.title ?? '支流对话';
+        const title = conversations.conversations.find((item) => item.id === conversations.activeId)?.title ?? '支流对话';
         const anchor = document.createElement('a');
         anchor.href = dataUrl;
         anchor.download = `${title.replace(/[\\/:*?"<>|]/g, '_') || '支流对话'}.png`;
         anchor.click();
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : '导出图片失败');
+        map.setNotice(error instanceof Error ? error.message : '导出图片失败');
       }
     };
 
@@ -96,7 +98,7 @@ export function MapExport() {
     return () => {
       if (exportImpl === exportPng) exportImpl = null;
     };
-  }, [reactFlow, setNotice]);
+  }, [reactFlow, map, conversations]);
 
   return null;
-}
+});

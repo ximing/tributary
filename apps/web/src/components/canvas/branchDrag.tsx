@@ -1,7 +1,9 @@
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { resolveDrop, type DropTarget } from '@tributary/domain';
-import { getCanvasSettings } from '../../lib/canvasSettings.js';
-import { useWorkspace, type DragState } from '../../store/workspace.js';
+import { CanvasPrefsService } from '../../services/canvas-prefs.service.js';
+import type { DragState } from '../../workspace/map-model.js';
+import { MapService } from '../../workspace/map.service.js';
 
 let suppressClick = false;
 
@@ -43,6 +45,8 @@ export function dropLabel(drop: DropTarget | null, questionOf: (id: string) => s
 
 /** 按下后移动超过阈值才拖。松手时按落点换父节点或调整兄弟顺序。 */
 export function useBranchDrag(id: string, enabled: boolean) {
+  const map = useService(MapService);
+  const prefs = useService(CanvasPrefsService);
   return (event: ReactPointerEvent<HTMLElement>) => {
     if (!enabled || event.button !== 0) return;
     if (!(event.target instanceof Element)) return;
@@ -55,20 +59,19 @@ export function useBranchDrag(id: string, enabled: boolean) {
       if (!active && Math.hypot(ev.clientX - startX, ev.clientY - startY) < 5) return;
       if (!active) window.getSelection()?.removeAllRanges();
       active = true;
-      const state = useWorkspace.getState();
-      const list = state.nodeOrder.map((nodeId) => state.nodes[nodeId]).filter((node) => Boolean(node));
-      const drop = resolveDrop(list, id, hoverAt(ev.clientX, ev.clientY, getCanvasSettings().layout));
-      state.setDrag({ id, x: ev.clientX, y: ev.clientY, drop });
+      const list = map.nodeOrder.map((nodeId) => map.nodes[nodeId]).filter((node) => Boolean(node));
+      const drop = resolveDrop(list, id, hoverAt(ev.clientX, ev.clientY, prefs.settings.layout));
+      map.setDrag({ id, x: ev.clientX, y: ev.clientY, drop });
     };
 
     const up = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
-      const drag = useWorkspace.getState().drag;
-      useWorkspace.getState().setDrag(null);
+      const drag = map.drag;
+      map.setDrag(null);
       if (!active) return;
       suppressClick = true;
-      if (drag?.id === id && drag.drop) void useWorkspace.getState().moveNodeTo(id, drag.drop.parentId, drag.drop.index);
+      if (drag?.id === id && drag.drop) void map.moveNodeTo(id, drag.drop.parentId, drag.drop.index);
     };
 
     window.addEventListener('pointermove', move);
@@ -76,13 +79,14 @@ export function useBranchDrag(id: string, enabled: boolean) {
   };
 }
 
-export function DragGhost() {
-  const drag = useWorkspace((state) => state.drag);
-  const question = useWorkspace((state) => (drag ? (state.nodes[drag.id]?.question ?? '') : ''));
-  const label = useWorkspace((state) => (drag ? dropLabel(drag.drop, (nodeId) => state.nodes[nodeId]?.question ?? '') : ''));
+export const DragGhost = observer(function DragGhost() {
+  const map = useService(MapService);
+  const drag = map.drag;
+  const question = drag ? (map.nodes[drag.id]?.question ?? '') : '';
+  const label = drag ? dropLabel(drag.drop, (nodeId) => map.nodes[nodeId]?.question ?? '') : '';
   if (!drag) return null;
   return <DragChip drag={drag} question={question} label={label} />;
-}
+});
 
 function DragChip({ drag, question, label }: { drag: DragState; question: string; label: string }) {
   return (

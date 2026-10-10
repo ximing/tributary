@@ -1,23 +1,25 @@
+import { observer, useService } from '@rabjs/react';
 import { CircleHelp } from 'lucide-react';
 import { SHORTCUTS } from '@tributary/domain';
-import { useWorkspace } from '../store/workspace.js';
+import { MapService } from '../workspace/map.service.js';
 
 const GROUPS: { title: string; ids: string[] }[] = [
-  { title: '编辑', ids: ['indent', 'sibling', 'toggle', 'collapse'] },
+  { title: '编辑', ids: ['child', 'sibling', 'edit', 'collapse'] },
   { title: '导航', ids: ['up', 'down', 'left', 'right'] },
   { title: '视图', ids: ['deselect', 'help'] },
   { title: '应用', ids: [] },
 ];
 
 const EXTRA: { group: string; hint: string; label: string }[] = [
-  { group: '编辑', hint: '⇧ Tab', label: '升一级' },
-  { group: '编辑', hint: '⌘ Enter', label: '添加子问题' },
+  { group: '编辑', hint: '⌥→', label: '收到上一同级下' },
+  { group: '编辑', hint: '⌥←', label: '升一级' },
+  { group: '编辑', hint: '⌥↑ / ⌥↓', label: '调整同级顺序' },
+  { group: '编辑', hint: '⇧ Space', label: '展开/收起回复' },
   { group: '编辑', hint: '⌘ C', label: '复制问题' },
   { group: '编辑', hint: '⌘ ⇧ C', label: '复制回答' },
   { group: '编辑', hint: '双击', label: '编辑问题' },
   { group: '编辑', hint: '⌘ Z', label: '撤回' },
   { group: '编辑', hint: '⌘ ⇧ Z', label: '重做' },
-  { group: '编辑', hint: '⌘ ↑ / ⌘ ↓', label: '调整同级顺序' },
   { group: '编辑', hint: '⌘ D', label: '复制这一枝' },
   { group: '编辑', hint: 'Del', label: '删除节点及子分支' },
   { group: '视图', hint: '⌘ F', label: '在这张图里查找' },
@@ -39,14 +41,13 @@ const EXTRA: { group: string; hint: string; label: string }[] = [
 ];
 
 /** `?` 打开的快捷键帮助浮层 */
-export function HelpPanel() {
-  const open = useWorkspace((state) => state.helpOpen);
-  const setHelpOpen = useWorkspace((state) => state.setHelpOpen);
+export const HelpPanel = observer(function HelpPanel() {
+  const map = useService(MapService);
 
-  if (!open) return null;
+  if (!map.helpOpen) return null;
 
   return (
-    <div className="help-overlay" onClick={() => setHelpOpen(false)}>
+    <div className="help-overlay" onClick={() => map.setHelpOpen(false)}>
       <div className="help-panel" role="dialog" aria-label="快捷键帮助" onClick={(event) => event.stopPropagation()}>
         <h2>
           <CircleHelp size={18} aria-hidden />
@@ -74,4 +75,4 @@ export function HelpPanel() {
       </div>
     </div>
   );
-}
+});

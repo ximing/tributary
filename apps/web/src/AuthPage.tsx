@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { useSession } from './store/session.js';
+import { observer, useService } from '@rabjs/react';
+import { SessionService } from './services/session.service.js';
 
-export function AuthPage() {
-  const signIn = useSession((state) => state.signIn);
-  const signUp = useSession((state) => state.signUp);
+export const AuthPage = observer(function AuthPage() {
+  const session = useService(SessionService);
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,8 +22,8 @@ export function AuthPage() {
           const name = displayName.trim();
           const action =
             mode === 'login'
-              ? signIn({ email: email.trim(), password })
-              : signUp({ email: email.trim(), password, ...(name ? { displayName: name } : {}) });
+              ? session.signIn({ email: email.trim(), password })
+              : session.signUp({ email: email.trim(), password, ...(name ? { displayName: name } : {}) });
           void action.catch((reason: unknown) => {
             setError(reason instanceof Error ? reason.message : '提交失败');
           }).finally(() => setPending(false));
@@ -77,4 +77,4 @@ export function AuthPage() {
       </form>
     </main>
   );
-}
+});

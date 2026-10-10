@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { useReactFlow } from '@xyflow/react';
 import type { LayoutDirection } from '@tributary/domain';
 import { readViewport } from '../../lib/viewportMemory.js';
-import { DEFAULT_NODE_HEIGHT, NODE_WIDTH, useWorkspace } from '../../store/workspace.js';
+import { DEFAULT_NODE_HEIGHT, NODE_WIDTH } from '../../workspace/map-model.js';
+import { MapService } from '../../workspace/map.service.js';
 
 /**
  * 切换对话时恢复上次的平移和缩放；第一次打开、或切换布局方向时适应全图。
@@ -41,8 +43,9 @@ export function FitView({
 }
 
 /** 新建节点 / 搜索定位后，把目标节点平移到视野中央（保持当前缩放比例） */
-export function FocusHandler() {
-  const focusRequest = useWorkspace((state) => state.focusRequest);
+export const FocusHandler = observer(function FocusHandler() {
+  const map = useService(MapService);
+  const focusRequest = map.focusRequest;
   const reactFlow = useReactFlow();
   useEffect(() => {
     if (!focusRequest) return;
@@ -68,4 +71,4 @@ export function FocusHandler() {
     return () => cancelAnimationFrame(frame);
   }, [focusRequest, reactFlow]);
   return null;
-}
+});

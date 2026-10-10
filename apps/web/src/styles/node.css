@@ -123,14 +123,21 @@
   cursor: text;
 }
 
-.node-meta {
+.answer-badge {
   display: flex;
   align-items: center;
-  gap: var(--s2);
+  gap: 5px;
+  min-width: 0;
   margin-top: var(--s2);
-  font-family: var(--font-mono);
+  color: var(--ink-2);
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  line-height: 1.3;
+}
+
+.answer-badge span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 摘要：三行截断。回答可以选择，用来划词追问。卡片其余部分仍由画布禁止选择。 */

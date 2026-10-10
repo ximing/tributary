@@ -1,28 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { Panel, useReactFlow, useViewport } from '@xyflow/react';
 import { Check, ChevronDown, ChevronsDownUp, Focus, GitBranch, ListTree, Map as MapIcon, Maximize, Minus, Play, Plus } from 'lucide-react';
-import { LAYOUT_OPTIONS, setCanvasSettings, useCanvasSettings } from '../../lib/canvasSettings.js';
 import { registerCanvasHandlers } from '../../lib/canvasBus.js';
-import { useWorkspace } from '../../store/workspace.js';
+import { CanvasPrefsService, LAYOUT_OPTIONS } from '../../services/canvas-prefs.service.js';
+import { MapService } from '../../workspace/map.service.js';
 import { runMapExport } from './MapExport.js';
 
 /**
  * 画布底部停靠工具条（Dock）：缩放 / 适应视图 / 布局方向 / 小地图。
  * 挂载时向 canvasBus 注册视口操作，供全局快捷键调用。
  */
-export function CanvasDock() {
-  const settings = useCanvasSettings();
+export const CanvasDock = observer(function CanvasDock() {
+  const map = useService(MapService);
+  const prefs = useService(CanvasPrefsService);
+  const settings = prefs.settings;
   const { zoom } = useViewport();
   const reactFlow = useReactFlow();
   const [menu, setMenu] = useState<'layout' | 'fold' | null>(null);
-  const focusId = useWorkspace((state) => state.focusId);
-  const outlineOpen = useWorkspace((state) => state.outlineOpen);
-  const selectedId = useWorkspace((state) => state.selectedId);
-  const collapseScope = useWorkspace((state) => state.collapseScope);
-  const toggleFocus = useWorkspace((state) => state.toggleFocus);
-  const setOutlineOpen = useWorkspace((state) => state.setOutlineOpen);
-  const openPresent = useWorkspace((state) => state.openPresent);
-  const presenting = useWorkspace((state) => Boolean(state.presentId));
+  const focusId = map.focusId;
+  const outlineOpen = map.outlineOpen;
+  const selectedId = map.selectedId;
+  const presenting = Boolean(map.presentId);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   const fit = () => void reactFlow.fitView({ padding: 0.25, duration: 200 });
@@ -105,7 +104,7 @@ export function CanvasDock() {
           aria-label={focusId ? '返回全图' : '只看这一枝'}
           aria-pressed={Boolean(focusId)}
           disabled={!selectedId && !focusId}
-          onClick={() => toggleFocus()}
+          onClick={() => map.toggleFocus()}
         >
           <Focus size={14} aria-hidden />
         </button>
@@ -114,7 +113,7 @@ export function CanvasDock() {
           className={presenting ? 'is-active' : undefined}
           title="演示"
           aria-label="演示"
-          onClick={() => openPresent(focusId ?? selectedId)}
+          onClick={() => map.openPresent(focusId ?? selectedId)}
         >
           <Play size={14} aria-hidden />
         </button>
@@ -124,7 +123,7 @@ export function CanvasDock() {
           title="大纲"
           aria-label="大纲"
           aria-pressed={outlineOpen}
-          onClick={() => setOutlineOpen(!outlineOpen)}
+          onClick={() => map.setOutlineOpen(!outlineOpen)}
         >
           <ListTree size={14} aria-hidden />
         </button>
@@ -134,7 +133,7 @@ export function CanvasDock() {
           title="小地图"
           aria-label="小地图"
           aria-pressed={settings.minimap}
-          onClick={() => setCanvasSettings({ minimap: !settings.minimap })}
+          onClick={() => prefs.patch({ minimap: !settings.minimap })}
         >
           <MapIcon size={14} aria-hidden />
         </button>
@@ -148,7 +147,7 @@ export function CanvasDock() {
                 role="menuitem"
                 className="menu-item"
                 onClick={() => {
-                  setCanvasSettings({ layout: option.value });
+                  prefs.patch({ layout: option.value });
                   setMenu(null);
                   // 布局切换后重新取景
                   requestAnimationFrame(fit);
@@ -182,7 +181,7 @@ export function CanvasDock() {
                 className="menu-item"
                 onClick={() => {
                   setMenu(null);
-                  void collapseScope(mode);
+                  void map.collapseScope(mode);
                 }}
               >
                 <span className="menu-main">{label}</span>
@@ -193,4 +192,4 @@ export function CanvasDock() {
       </div>
     </Panel>
   );
-}
+});

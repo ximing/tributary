@@ -1,13 +1,16 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { createPortal } from 'react-dom';
 import { stickerOf } from '@tributary/domain';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { ChevronDown, CircleAlert, LoaderCircle, Plus, RefreshCw, Square } from 'lucide-react';
 import { useNodeSize } from '../../hooks/useNodeSize.js';
-import { useCanvasSettings } from '../../lib/canvasSettings.js';
 import { markElement, splitHighlight } from '../../lib/findMark.js';
-import { useWorkspace } from '../../store/workspace.js';
+import { CanvasPrefsService } from '../../services/canvas-prefs.service.js';
+import { MapService } from '../../workspace/map.service.js';
+import { StreamService } from '../../workspace/stream.service.js';
 import { useBranchDrag } from './branchDrag.js';
+import { AnswerBadge } from '../AnswerBadge.js';
 import { NodeActionBar } from './NodeActionBar.js';
 import { NodeMarkdown } from './NodeMarkdown.js';
 
@@ -17,31 +20,25 @@ type QuestionFlowNode = Node<Record<string, never>, 'question'>;
  * 节点卡片：紧凑态只显示问题与回复摘要；展开/流式时显示完整 markdown。
  * 流式文本走 store 精确订阅，只有这张卡片随 token 重渲染。
  */
-export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }: NodeProps<QuestionFlowNode>) {
-  const node = useWorkspace((state) => state.nodes[id]);
-  const streamingText = useWorkspace((state) => state.streaming[id]);
-  const streamError = useWorkspace((state) => state.streamErrors[id]);
-  const expanded = useWorkspace((state) => Boolean(state.expandedReplies[id]));
-  const childCount = useWorkspace(
-    (state) => state.nodeOrder.reduce((count, nid) => (state.nodes[nid]?.parentId === id ? count + 1 : count), 0),
-  );
-  const openDraft = useWorkspace((state) => state.openDraft);
-  const toggleCollapse = useWorkspace((state) => state.toggleCollapse);
-  const retryNode = useWorkspace((state) => state.retryNode);
-  const askNode = useWorkspace((state) => state.askNode);
-  const stopNode = useWorkspace((state) => state.stopNode);
-  const findQuery = useWorkspace((state) => (state.findCurrentId === id ? state.findQuery : ''));
-  const editingNote = useWorkspace((state) => state.editingNoteId === id);
-  const setEditingNote = useWorkspace((state) => state.setEditingNote);
-  const linkSource = useWorkspace((state) => state.linkFrom === id);
+export const QuestionNodeView = observer(function QuestionNodeView({ id, selected }: NodeProps<QuestionFlowNode>) {
+  const map = useService(MapService);
+  const streams = useService(StreamService);
+  const prefs = useService(CanvasPrefsService);
+  const node = map.nodes[id];
+  const streamingText = streams.streaming[id];
+  const streamError = streams.streamErrors[id];
+  const expanded = Boolean(map.expandedReplies[id]);
+  const childCount = map.nodeOrder.reduce((count, nid) => (map.nodes[nid]?.parentId === id ? count + 1 : count), 0);
+  const findQuery = map.findCurrentId === id ? map.findQuery : '';
+  const editingNote = map.editingNoteId === id;
+  const linkSource = map.linkFrom === id;
   const found = findQuery.trim().length > 0;
   const replyRef = useRef<HTMLDivElement>(null);
   const [ask, setAsk] = useState<{ text: string; x: number; y: number } | null>(null);
-  const editing = useWorkspace((state) => state.editingId === id);
-  const setEditing = useWorkspace((state) => state.setEditing);
-  const drag = useWorkspace((state) => state.drag);
+  const editing = map.editingId === id;
+  const drag = map.drag;
   const onPointerDown = useBranchDrag(id, !editing);
-  const { layout } = useCanvasSettings();
+  const layout = prefs.settings.layout;
   const ref = useNodeSize<HTMLDivElement>(id);
 
   useEffect(() => {
@@ -70,7 +67,7 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
           onMouseDown={(event) => event.preventDefault()}
           onClick={(event) => {
             event.stopPropagation();
-            openDraft('child', id, ask.text);
+            map.openDraft('child', id, ask.text);
             window.getSelection()?.removeAllRanges();
             setAsk(null);
           }}
@@ -101,15 +98,17 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
       ) : (
         <p
           className="node-question"
-          title="双击编辑"
+          title="空格或双击编辑"
           onDoubleClick={(event) => {
             event.stopPropagation();
-            setEditing(id);
+            map.setEditing(id);
           }}
         >
           <MarkedText text={node.question} query={findQuery} sticker={node.sticker} />
         </p>
       )}
+
+      {node.model ? <AnswerBadge providerId={node.providerId} model={node.model} /> : null}
 
       {editingNote ? (
         <NoteEditor id={id} note={node.note ?? ''} />
@@ -120,7 +119,7 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
           onClick={(event) => event.stopPropagation()}
           onDoubleClick={(event) => {
             event.stopPropagation();
-            setEditingNote(id);
+            map.setEditingNote(id);
           }}
         >
           <span className="node-note-label">笔记</span>
@@ -141,7 +140,7 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
             className="node-stop"
             onClick={(event) => {
               event.stopPropagation();
-              void stopNode(id);
+              void map.stopNode(id);
             }}
           >
             <Square size={10} aria-hidden />
@@ -186,7 +185,7 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
           className="node-retry"
           onClick={(event) => {
             event.stopPropagation();
-            void askNode(id);
+            void map.askNode(id);
           }}
         >
           <RefreshCw size={13} aria-hidden />
@@ -205,19 +204,13 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
             className="node-retry"
             onClick={(event) => {
               event.stopPropagation();
-              retryNode(id);
+              map.retryNode(id);
             }}
           >
             <RefreshCw size={13} aria-hidden />
             重试
           </button>
         </>
-      ) : null}
-
-      {node.model ? (
-        <p className="node-meta">
-          <span>{node.model}</span>
-        </p>
       ) : null}
 
       {childCount > 0 ? (
@@ -227,7 +220,7 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
           aria-label={node.collapsed ? `展开 ${childCount} 个子节点` : '折叠子树'}
           onClick={(event) => {
             event.stopPropagation();
-            void toggleCollapse(id);
+            void map.toggleCollapse(id);
           }}
         >
           {node.collapsed ? <span className="node-badge">{childCount}</span> : <ChevronDown size={13} aria-hidden />}
@@ -238,9 +231,10 @@ export const QuestionNodeView = memo(function QuestionNodeView({ id, selected }:
         type="button"
         className="node-btn node-add"
         aria-label="添加子问题"
+        title="添加子问题 (Tab)"
         onClick={(event) => {
           event.stopPropagation();
-          openDraft('child', id);
+          map.openDraft('child', id);
         }}
       >
         <Plus size={13} strokeWidth={2.5} aria-hidden />
@@ -294,9 +288,8 @@ function MarkedText({ text, query, sticker }: { text: string; query: string; sti
   );
 }
 
-function NoteEditor({ id, note }: { id: string; note: string }) {
-  const saveNote = useWorkspace((state) => state.saveNote);
-  const setEditingNote = useWorkspace((state) => state.setEditingNote);
+const NoteEditor = observer(function NoteEditor({ id, note }: { id: string; note: string }) {
+  const map = useService(MapService);
   const [text, setText] = useState(note);
   const skipBlur = useRef(false);
 
@@ -317,26 +310,25 @@ function NoteEditor({ id, note }: { id: string; note: string }) {
         if (event.key === 'Escape') {
           event.preventDefault();
           skipBlur.current = true;
-          setEditingNote(null);
+          map.setEditingNote(null);
           return;
         }
         if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
           event.preventDefault();
           skipBlur.current = true;
-          void saveNote(id, text);
+          void map.saveNote(id, text);
         }
       }}
       onBlur={() => {
         if (skipBlur.current) return;
-        void saveNote(id, text);
+        void map.saveNote(id, text);
       }}
     />
   );
-}
+});
 
-function QuestionEditor({ id, question }: { id: string; question: string }) {
-  const renameQuestion = useWorkspace((state) => state.renameQuestion);
-  const setEditing = useWorkspace((state) => state.setEditing);
+const QuestionEditor = observer(function QuestionEditor({ id, question }: { id: string; question: string }) {
+  const map = useService(MapService);
   const [text, setText] = useState(question);
   const skipBlur = useRef(false);
 
@@ -360,19 +352,19 @@ function QuestionEditor({ id, question }: { id: string; question: string }) {
         if (event.key === 'Escape') {
           event.preventDefault();
           skipBlur.current = true;
-          setEditing(null);
+          map.setEditing(null);
           return;
         }
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault();
           skipBlur.current = true;
-          void renameQuestion(id, text);
+          void map.renameQuestion(id, text);
         }
       }}
       onBlur={() => {
         if (skipBlur.current) return;
-        void renameQuestion(id, text);
+        void map.renameQuestion(id, text);
       }}
     />
   );
-}
+});

@@ -1,35 +1,40 @@
 import { useCallback, useEffect } from 'react';
+import { bindServices, useService } from '@rabjs/react';
 import { Outlet, useSearchParams } from 'react-router';
 import { ReactFlowProvider } from '@xyflow/react';
-import { useHotkeys } from './hooks/useHotkeys.js';
-import { useWorkspace } from './store/workspace.js';
-import { initStreamManager } from './streams/streamManager.js';
-import { Canvas } from './components/canvas/Canvas.js';
-import { ConfirmDialog } from './components/ConfirmDialog.js';
-import { ContextMenu } from './components/ContextMenu.js';
-import { HelpPanel } from './components/HelpPanel.js';
-import { Rail } from './components/rail/Rail.js';
-import { SettingsDialog, SETTINGS_SECTIONS } from './Settings.js';
+import { Canvas } from '../components/canvas/Canvas.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
+import { ContextMenu } from '../components/ContextMenu.js';
+import { HelpPanel } from '../components/HelpPanel.js';
+import { Rail } from '../components/rail/Rail.js';
+import { useHotkeys } from '../hooks/useHotkeys.js';
+import { SettingsDialog } from '../settings/SettingsDialog.js';
+import { SETTINGS_SECTIONS } from '../settings/sections.js';
+import { ConversationService } from './conversation.service.js';
+import { MapService } from './map.service.js';
+import { ModelCatalogService } from './model-catalog.service.js';
+import { SearchService } from './search.service.js';
+import { StreamService } from './stream.service.js';
 
-export function Workspace() {
-  const init = useWorkspace((state) => state.init);
-  const notice = useWorkspace((state) => state.notice);
-  const setNotice = useWorkspace((state) => state.setNotice);
+function WorkspaceView() {
+  const conversations = useService(ConversationService);
+  const map = useService(MapService);
+  const search = useService(SearchService);
+  const streams = useService(StreamService);
   const [params, setParams] = useSearchParams();
   const settings = params.get('settings');
   const settingsSection = SETTINGS_SECTIONS.find((section) => section === settings) ?? null;
 
   useEffect(() => {
-    void init();
-    return initStreamManager();
-  }, [init]);
+    void conversations.init();
+    return streams.watch();
+  }, [conversations, streams]);
 
   useEffect(() => {
     if (!settingsSection) return;
-    const state = useWorkspace.getState();
-    if (state.searchOpen) state.setSearchOpen(false);
-    if (state.helpOpen) state.setHelpOpen(false);
-  }, [settingsSection]);
+    if (search.searchOpen) search.setOpen(false);
+    if (map.helpOpen) map.setHelpOpen(false);
+  }, [settingsSection, search, map]);
 
   useHotkeys({
     openSettings: useCallback(() => {
@@ -78,11 +83,19 @@ export function Workspace() {
         />
       ) : null}
       <Outlet />
-      {notice ? (
-        <button type="button" className="notice" onClick={() => setNotice('')}>
-          {notice}
+      {map.notice ? (
+        <button type="button" className="notice" onClick={() => map.setNotice('')}>
+          {map.notice}
         </button>
       ) : null}
     </div>
   );
 }
+
+export const Workspace = bindServices(WorkspaceView, [
+  ConversationService,
+  ModelCatalogService,
+  MapService,
+  SearchService,
+  StreamService,
+]);

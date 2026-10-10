@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { Search } from 'lucide-react';
 import type { SearchHit } from '../../api/client.js';
-import { useWorkspace } from '../../store/workspace.js';
+import { ConversationService } from '../../workspace/conversation.service.js';
+import { SearchService } from '../../workspace/search.service.js';
 
 function snippet(reply: string | null): string {
   if (!reply) return '';
@@ -11,13 +13,9 @@ function snippet(reply: string | null): string {
 }
 
 /** ⌘K / 顶栏搜索图标打开的搜索弹窗。 */
-export function SearchDialog() {
-  const open = useWorkspace((state) => state.searchOpen);
-  const setSearchOpen = useWorkspace((state) => state.setSearchOpen);
-  const hits = useWorkspace((state) => state.hits);
-  const runSearch = useWorkspace((state) => state.runSearch);
-  const clearHits = useWorkspace((state) => state.clearHits);
-  const openConversation = useWorkspace((state) => state.openConversation);
+export const SearchDialog = observer(function SearchDialog() {
+  const search = useService(SearchService);
+  const conversations = useService(ConversationService);
   const [query, setQuery] = useState('');
   const [pending, setPending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -26,28 +24,30 @@ export function SearchDialog() {
   const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!search.searchOpen) return;
     inputRef.current?.focus();
-  }, [open]);
+  }, [search.searchOpen]);
 
   useEffect(() => {
     setActive(-1);
-  }, [hits]);
+  }, [search.hits]);
 
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  if (!open) return null;
+  if (!search.searchOpen) return null;
+
+  const hits = search.hits;
 
   const dismiss = () => {
-    setSearchOpen(false);
+    search.setOpen(false);
     document.getElementById('rail-search-button')?.focus();
   };
 
   const pick = (hit: SearchHit) => {
-    setSearchOpen(false);
-    void openConversation(hit.conversationId, hit.nodeId);
+    search.setOpen(false);
+    void conversations.open(hit.conversationId, hit.nodeId);
   };
 
   const submit = () => {
@@ -55,8 +55,8 @@ export function SearchDialog() {
     if (!q || pending) return;
     setPending(true);
     setSubmitted(true);
-    clearHits();
-    void runSearch(q).finally(() => setPending(false));
+    search.clearHits();
+    void search.run(q).finally(() => setPending(false));
   };
 
   return (
@@ -117,7 +117,7 @@ export function SearchDialog() {
               <button
                 type="button"
                 onClick={() => {
-                  clearHits();
+                  search.clearHits();
                   setQuery('');
                   setSubmitted(false);
                   inputRef.current?.focus();
@@ -149,4 +149,4 @@ export function SearchDialog() {
       </div>
     </div>
   );
-}
+});

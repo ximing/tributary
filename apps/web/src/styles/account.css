@@ -609,7 +609,64 @@
 }
 
 .usage-groups strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
+}
+
+.provider-mark {
+  flex: none;
+  display: block;
+}
+
+.provider-mark-openai,
+.provider-mark-kimi,
+.provider-mark-xai,
+.provider-mark-groq {
+  color: var(--ink);
+}
+
+.provider-mark-deepseek {
+  color: #4d6bfe;
+}
+
+.provider-mark-claude {
+  color: #d97757;
+}
+
+.provider-mark-zhipu {
+  color: #2563eb;
+}
+
+.provider-mark-dashscope {
+  color: #6950ef;
+}
+
+.provider-mark-gemini {
+  color: #8e75b2;
+}
+
+.provider-mark-mistral {
+  color: #fa520f;
+}
+
+.provider-mark-minimax {
+  color: #e73562;
+}
+
+.provider-mark-doubao {
+  color: #3c8cff;
+}
+
+.provider-mark-openrouter {
+  color: #64748b;
+}
+
+.usage-provider {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .usage-groups span {
@@ -736,7 +793,7 @@
 /* ---------- 供应商选择卡片 ---------- */
 .provider-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
   gap: var(--s2);
 }
 
@@ -778,8 +835,8 @@
   display: grid;
   place-items: center;
   border-radius: var(--r-s);
-  background: var(--accent-soft);
-  color: var(--accent-ink);
+  background: var(--bg);
+  color: var(--ink);
 }
 
 .config-main {

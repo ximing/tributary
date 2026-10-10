@@ -1,5 +1,5 @@
 import { BaseEdge, useInternalNode, type EdgeProps, type InternalNode, type Node } from '@xyflow/react';
-import { NODE_WIDTH } from '../../store/workspace.js';
+import { NODE_WIDTH } from '../../workspace/map-model.js';
 
 interface Box {
   x: number;

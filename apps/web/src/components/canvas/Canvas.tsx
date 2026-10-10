@@ -1,23 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
+import { observer, useService } from '@rabjs/react';
 import { Background, MarkerType, MiniMap, ReactFlow, type Edge, type Node } from '@xyflow/react';
-import { SendHorizontal } from 'lucide-react';
 import { ancestorIds, layoutTree, topLeft } from '@tributary/domain';
-import {
-  DEFAULT_NODE_HEIGHT,
-  DRAFT_NODE_HEIGHT,
-  NODE_WIDTH,
-  useWorkspace,
-  visibleTreeOf,
-} from '../../store/workspace.js';
-import { BRANCH_PALETTES, useCanvasSettings } from '../../lib/canvasSettings.js';
-import { cssVar, useTheme } from '../../lib/theme.js';
+import { BRANCH_PALETTES, CanvasPrefsService } from '../../services/canvas-prefs.service.js';
+import { cssVar, ThemeService } from '../../services/theme.service.js';
 import { truncate } from '../../lib/format.js';
 import { readViewport, writeViewport } from '../../lib/viewportMemory.js';
-import { ModelChip } from '../ModelChip.js';
+import { ConversationService } from '../../workspace/conversation.service.js';
+import { DEFAULT_NODE_HEIGHT, DRAFT_NODE_HEIGHT, NODE_WIDTH, visibleTreeOf } from '../../workspace/map-model.js';
+import { MapService } from '../../workspace/map.service.js';
 import { consumeDragClick, DragGhost } from './branchDrag.js';
 import { CanvasDock } from './CanvasDock.js';
 import { CanvasToolbar } from './CanvasToolbar.js';
 import { DraftNodeView } from './DraftNode.js';
+import { EmptyHero } from './EmptyHero.js';
 import { FitView, FocusHandler } from './FitView.js';
 import { MapExport } from './MapExport.js';
 import { MapFind } from './MapFind.js';
@@ -35,12 +31,11 @@ function isDraftId(id: string): boolean {
 }
 
 /** 只看这一枝时，顶上是从根到当前节点的路径。点祖先会把视野放到那一枝。 */
-function FocusPath() {
-  const focusId = useWorkspace((state) => state.focusId);
-  const nodes = useWorkspace((state) => state.nodes);
-  const nodeOrder = useWorkspace((state) => state.nodeOrder);
-  const focusBranch = useWorkspace((state) => state.focusBranch);
-  const toggleFocus = useWorkspace((state) => state.toggleFocus);
+const FocusPath = observer(function FocusPath() {
+  const map = useService(MapService);
+  const focusId = map.focusId;
+  const nodes = map.nodes;
+  const nodeOrder = map.nodeOrder;
   if (!focusId || !nodes[focusId]) return null;
   const linked = nodeOrder.flatMap((id) => {
     const node = nodes[id];
@@ -53,95 +48,46 @@ function FocusPath() {
       {ids.map((id, index) => (
         <span key={id} className="focus-crumb">
           {index > 0 ? <span className="focus-sep">/</span> : null}
-          <button type="button" className={id === focusId ? 'is-current' : undefined} title={nodes[id]?.question} onClick={() => focusBranch(id)}>
+          <button type="button" className={id === focusId ? 'is-current' : undefined} title={nodes[id]?.question} onClick={() => map.focusBranch(id)}>
             {truncate(nodes[id]?.question ?? '', 16)}
           </button>
         </span>
       ))}
-      <button type="button" className="focus-back" onClick={() => toggleFocus()}>
+      <button type="button" className="focus-back" onClick={() => map.toggleFocus()}>
         返回全图
       </button>
     </nav>
   );
-}
+});
 
-function LinkChip() {
-  const linkFrom = useWorkspace((state) => state.linkFrom);
-  const question = useWorkspace((state) => (state.linkFrom ? state.nodes[state.linkFrom]?.question : ''));
-  const cancelLink = useWorkspace((state) => state.cancelLink);
-  if (!linkFrom) return null;
+const LinkChip = observer(function LinkChip() {
+  const map = useService(MapService);
+  if (!map.linkFrom) return null;
+  const question = map.nodes[map.linkFrom]?.question ?? '';
   return (
     <div className="link-chip">
-      从「{truncate(question ?? '', 16)}」连出
-      <button type="button" onClick={() => cancelLink()}>
+      从「{truncate(question, 16)}」连出
+      <button type="button" onClick={() => map.cancelLink()}>
         取消
       </button>
     </div>
   );
-}
+});
 
-/** 空对话时画布中央的第一问（替代原底部 Composer） */
-function EmptyHero() {
-  const submit = useWorkspace((state) => state.submit);
-  const [text, setText] = useState('');
-
-  const ask = () => {
-    const value = text.trim();
-    if (!value) return;
-    void submit(value).then(() => setText(''));
-  };
-
-  return (
-    <div className="hero">
-      <p className="mark">支</p>
-      <h2>从一个问题开始</h2>
-      <p className="sub">每个回答都能继续分叉，长成一棵树</p>
-      <div className="hero-input">
-        <textarea
-          rows={2}
-          aria-label="第一个问题"
-          placeholder="输入你的问题…"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              ask();
-            }
-          }}
-        />
-        <button type="button" className="send-btn" aria-label="提问" disabled={!text.trim()} onClick={ask}>
-          <SendHorizontal size={13} aria-hidden />
-        </button>
-      </div>
-      <div className="hero-foot">
-        <ModelChip />
-        <span className="tip">
-          <kbd>⏎</kbd> 提问 · 双击画板也可以
-        </span>
-      </div>
-    </div>
-  );
-}
-
-export function Canvas() {
-  const nodes = useWorkspace((state) => state.nodes);
-  const nodeOrder = useWorkspace((state) => state.nodeOrder);
-  const drafts = useWorkspace((state) => state.drafts);
-  const heights = useWorkspace((state) => state.heights);
-  const selectedId = useWorkspace((state) => state.selectedId);
-  const focusId = useWorkspace((state) => state.focusId);
-  const activeId = useWorkspace((state) => state.activeId);
-  const clickNode = useWorkspace((state) => state.clickNode);
-  const select = useWorkspace((state) => state.select);
-  const setMenu = useWorkspace((state) => state.setMenu);
-  const openDraft = useWorkspace((state) => state.openDraft);
-  const links = useWorkspace((state) => state.links);
-  const setConfirm = useWorkspace((state) => state.setConfirm);
-  const removeLink = useWorkspace((state) => state.removeLink);
-  const cancelLink = useWorkspace((state) => state.cancelLink);
-  const theme = useTheme();
-  const settings = useCanvasSettings();
+export const Canvas = observer(function Canvas() {
+  const map = useService(MapService);
+  const conversations = useService(ConversationService);
+  const theme = useService(ThemeService);
+  const prefs = useService(CanvasPrefsService);
+  const nodes = map.nodes;
+  const nodeOrder = map.nodeOrder;
+  const drafts = map.drafts;
+  const heights = map.heights;
+  const selectedId = map.selectedId;
+  const focusId = map.focusId;
+  const activeId = conversations.activeId;
+  const links = map.links;
+  const settings = prefs.settings;
 
   const tree = useMemo(
     () => visibleTreeOf({ nodes, nodeOrder, drafts, focusId }),
@@ -149,15 +95,15 @@ export function Canvas() {
   );
 
   // SVG 属性吃不到 var()，主题切换时重读计算值
-  const dotColor = useMemo(() => cssVar('--edge') || '#c4b69e', [theme]);
-  const maskColor = useMemo(() => cssVar('--mask') || 'rgba(0,0,0,0.2)', [theme]);
-  const minimapBase = useMemo(() => cssVar('--line-strong') || '#d2c5ae', [theme]);
-  const minimapAccent = useMemo(() => cssVar('--accent') || '#b4442c', [theme]);
+  const dotColor = useMemo(() => cssVar('--edge') || '#c4b69e', [theme.theme]);
+  const maskColor = useMemo(() => cssVar('--mask') || 'rgba(0,0,0,0.2)', [theme.theme]);
+  const minimapBase = useMemo(() => cssVar('--line-strong') || '#d2c5ae', [theme.theme]);
+  const minimapAccent = useMemo(() => cssVar('--accent') || '#b4442c', [theme.theme]);
 
   /** 分支着色：一级分支（根的直接子节点）定色，整棵子树继承 */
   const branchColor = useMemo(() => {
     if (!settings.branchColors) return () => null;
-    const palette = BRANCH_PALETTES[theme];
+    const palette = BRANCH_PALETTES[theme.theme];
     const byId = new Map(tree.map((node) => [node.id, node]));
     const assigned = new Map<string, number>();
     return (id: string): string | null => {
@@ -172,7 +118,7 @@ export function Canvas() {
       if (!assigned.has(branch)) assigned.set(branch, assigned.size);
       return palette[assigned.get(branch)! % palette.length];
     };
-  }, [settings.branchColors, theme, tree]);
+  }, [settings.branchColors, theme.theme, tree]);
 
   const flowNodes: Node[] = useMemo(() => {
     const heightOf = (id: string) => heights[id] ?? (isDraftId(id) ? DRAFT_NODE_HEIGHT : DEFAULT_NODE_HEIGHT);
@@ -240,10 +186,11 @@ export function Canvas() {
   return (
     <div
       className="flow"
+      role="region"
       aria-label="脑图画板"
       onDoubleClick={(event) => {
         if (event.target instanceof HTMLElement && event.target.classList.contains('react-flow__pane')) {
-          openDraft('root');
+          map.openDraft('root');
         }
       }}
     >
@@ -264,7 +211,7 @@ export function Canvas() {
         onNodeClick={(_event, node) => {
           if (consumeDragClick()) return;
           if (isDraftId(node.id)) return;
-          clickNode(node.id);
+          map.clickNode(node.id);
         }}
         onMoveEnd={(_event, viewport) => {
           if (!activeId) return;
@@ -276,29 +223,29 @@ export function Canvas() {
           writeViewport(activeId, viewport);
         }}
         onPaneClick={() => {
-          setMenu(null);
-          if (useWorkspace.getState().linkFrom) cancelLink();
+          map.setMenu(null);
+          if (map.linkFrom) map.cancelLink();
         }}
         onEdgeClick={(_event, edge) => {
           if (!edge.id.startsWith('link:')) return;
           const linkId = edge.id.slice('link:'.length);
-          setConfirm({
+          map.setConfirm({
             title: '断开这条关系线？',
             confirmLabel: '断开',
             danger: true,
             onConfirm: () => {
-              void removeLink(linkId);
+              void map.removeLink(linkId);
             },
           });
         }}
         onPaneContextMenu={(event) => {
           event.preventDefault();
-          setMenu({ x: event.clientX, y: event.clientY, target: 'pane' });
+          map.setMenu({ x: event.clientX, y: event.clientY, target: 'pane' });
         }}
         onEdgeContextMenu={(event, edge) => {
           event.preventDefault();
           if (edge.id.startsWith('link:')) {
-            setMenu({
+            map.setMenu({
               x: event.clientX,
               y: event.clientY,
               target: 'edge',
@@ -306,13 +253,13 @@ export function Canvas() {
             });
             return;
           }
-          setMenu({ x: event.clientX, y: event.clientY, target: 'pane' });
+          map.setMenu({ x: event.clientX, y: event.clientY, target: 'pane' });
         }}
         onNodeContextMenu={(event, node) => {
           event.preventDefault();
           if (isDraftId(node.id)) return;
-          select(node.id);
-          setMenu({ x: event.clientX, y: event.clientY, target: 'node' });
+          map.select(node.id);
+          map.setMenu({ x: event.clientX, y: event.clientY, target: 'node' });
         }}
         minZoom={0.2}
         maxZoom={1.6}
@@ -348,4 +295,4 @@ export function Canvas() {
       </ReactFlow>
     </div>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { observer, useService } from '@rabjs/react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import {
   indentTarget,
@@ -37,32 +38,37 @@ import {
   UnfoldVertical,
   Waypoints,
 } from 'lucide-react';
+import { ProviderMark } from './ProviderMark.js';
 import { canvasExportPng } from '../lib/canvasBus.js';
-import { LAYOUT_OPTIONS, setCanvasSettings, useCanvasSettings } from '../lib/canvasSettings.js';
 import { conversationToMarkdown, downloadMarkdown } from '../lib/exportMarkdown.js';
-import { modelValue, splitModelChoice, useWorkspace, type CanvasMenuState } from '../store/workspace.js';
+import { CanvasPrefsService, LAYOUT_OPTIONS } from '../services/canvas-prefs.service.js';
+import { ConversationService } from '../workspace/conversation.service.js';
+import { type CanvasMenuState, modelValue, splitModelChoice } from '../workspace/map-model.js';
+import { MapService } from '../workspace/map.service.js';
+import { ModelCatalogService } from '../workspace/model-catalog.service.js';
 
 /** 右键菜单：节点、画布空白、关系线。主入口仍是快捷键与节点上的按钮。 */
-export function ContextMenu() {
-  const menu = useWorkspace((state) => state.menu);
-  useDismissMenu(menu !== null);
+export const ContextMenu = observer(function ContextMenu() {
+  const map = useService(MapService);
+  const menu = map.menu;
+  useDismissMenu(menu !== null, map);
   if (!menu) return null;
   if (menu.target === 'pane') return <PaneMenu x={menu.x} y={menu.y} />;
   if (menu.target === 'edge' && menu.linkId) return <EdgeMenu x={menu.x} y={menu.y} linkId={menu.linkId} />;
   return <NodeMenu x={menu.x} y={menu.y} />;
-}
+});
 
-function useDismissMenu(open: boolean): void {
+function useDismissMenu(open: boolean, map: MapService): void {
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
       const target = event.target;
       if (target instanceof Element && target.closest('.menu')) return;
-      useWorkspace.getState().setMenu(null);
+      map.setMenu(null);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') useWorkspace.getState().setMenu(null);
+      if (event.key === 'Escape') map.setMenu(null);
     };
     window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('keydown', onKey);
@@ -70,7 +76,7 @@ function useDismissMenu(open: boolean): void {
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, map]);
 }
 
 function MenuFrame({ x, y, label, children }: { x: number; y: number; label: string; children: ReactNode }) {
@@ -103,44 +109,42 @@ function MenuFrame({ x, y, label, children }: { x: number; y: number; label: str
   );
 }
 
-function closeMenu(): void {
-  useWorkspace.getState().setMenu(null);
-}
-
 function shortQuestion(text: string | undefined): string {
   const name = text?.trim() || '节点';
   return name.length > 12 ? `${name.slice(0, 12)}…` : name;
 }
 
-function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
-  const selectedId = useWorkspace((state) => state.selectedId);
-  const focusId = useWorkspace((state) => state.focusId);
-  const openDraft = useWorkspace((state) => state.openDraft);
-  const toggleCollapse = useWorkspace((state) => state.toggleCollapse);
-  const regenerateNode = useWorkspace((state) => state.regenerateNode);
-  const removeNode = useWorkspace((state) => state.removeNode);
-  const setEditing = useWorkspace((state) => state.setEditing);
-  const toggleFocus = useWorkspace((state) => state.toggleFocus);
-  const copyBranch = useWorkspace((state) => state.copyBranch);
-  const copyPlainText = useWorkspace((state) => state.copyPlainText);
-  const answerWithAnotherModel = useWorkspace((state) => state.answerWithAnotherModel);
-  const answerAgain = useWorkspace((state) => state.answerAgain);
-  const setEditingNote = useWorkspace((state) => state.setEditingNote);
-  const chooseSticker = useWorkspace((state) => state.chooseSticker);
-  const startLink = useWorkspace((state) => state.startLink);
-  const removeLink = useWorkspace((state) => state.removeLink);
-  const openPresent = useWorkspace((state) => state.openPresent);
-  const relevelSelected = useWorkspace((state) => state.relevelSelected);
-  const reorderSelected = useWorkspace((state) => state.reorderSelected);
-  const toggleReply = useWorkspace((state) => state.toggleReply);
-  const stopNode = useWorkspace((state) => state.stopNode);
-  const node = useWorkspace((state) => (selectedId ? state.nodes[selectedId] : undefined));
-  const configs = useWorkspace((state) => state.configs);
-  const links = useWorkspace((state) => state.links);
-  const nodes = useWorkspace((state) => state.nodes);
-  const nodeOrder = useWorkspace((state) => state.nodeOrder);
-  const modelChoice = useWorkspace((state) => state.modelChoice);
-  const replyOpen = useWorkspace((state) => (selectedId ? Boolean(state.expandedReplies[selectedId]) : false));
+const NodeMenu = observer(function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
+  const map = useService(MapService);
+  const catalog = useService(ModelCatalogService);
+  const selectedId = map.selectedId;
+  const focusId = map.focusId;
+  const node = selectedId ? map.nodes[selectedId] : undefined;
+  const configs = catalog.configs;
+  const links = map.links;
+  const nodes = map.nodes;
+  const nodeOrder = map.nodeOrder;
+  const modelChoice = catalog.modelChoice;
+  const replyOpen = selectedId ? Boolean(map.expandedReplies[selectedId]) : false;
+
+  const openDraft = (relation: 'root' | 'child' | 'sibling', anchorId?: string, seed?: string) => map.openDraft(relation, anchorId, seed);
+  const toggleCollapse = (id: string) => map.toggleCollapse(id);
+  const regenerateNode = (id: string) => map.regenerateNode(id);
+  const removeNode = (id: string) => map.removeNode(id);
+  const setEditing = (id: string | null) => map.setEditing(id);
+  const toggleFocus = () => map.toggleFocus();
+  const copyBranch = (id: string) => map.copyBranch(id);
+  const copyPlainText = (text: string) => map.copyPlainText(text);
+  const answerWithAnotherModel = (id: string, providerId: string, model: string) => map.answerWithAnotherModel(id, providerId, model);
+  const answerAgain = (id: string) => map.answerAgain(id);
+  const setEditingNote = (id: string | null) => map.setEditingNote(id);
+  const chooseSticker = (id: string, sticker: Parameters<MapService['chooseSticker']>[1]) => map.chooseSticker(id, sticker);
+  const startLink = (id: string) => map.startLink(id);
+  const openPresent = (id?: string | null) => map.openPresent(id);
+  const relevelSelected = (direction: 'indent' | 'outdent') => map.relevelSelected(direction);
+  const reorderSelected = (delta: number) => map.reorderSelected(delta);
+  const toggleReply = (id: string) => map.toggleReply(id);
+  const stopNode = (id: string) => map.stopNode(id);
 
   if (!selectedId || !node) return null;
   const linked = nodeOrder.flatMap((id) => {
@@ -162,21 +166,20 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
   const againLabel = node.model ? `再用 ${node.model} 答一版` : '用当前模型再答一版';
   const nodeLinks = links.filter((link) => link.sourceId === selectedId || link.targetId === selectedId);
   const exportBranch = () => {
-    const state = useWorkspace.getState();
     const title = node.question.trim().slice(0, 40) || '这一枝';
-    downloadMarkdown(title, conversationToMarkdown(title, state.nodes, state.nodeOrder, selectedId));
-    state.setMenu(null);
+    downloadMarkdown(title, conversationToMarkdown(title, map.nodes, map.nodeOrder, selectedId));
+    map.setMenu(null);
   };
 
   return (
     <MenuFrame x={x} y={y} label="节点操作">
       <button type="button" className="menu-item" role="menuitem" onClick={() => setEditing(selectedId)}>
         <Pencil size={14} aria-hidden />
-        编辑问题
+        编辑问题 <kbd>Space</kbd>
       </button>
       <button type="button" className="menu-item" role="menuitem" onClick={() => openDraft('child')}>
         <CornerDownRight size={14} aria-hidden />
-        添加子问题 <kbd>⌘Enter</kbd>
+        添加子问题 <kbd>Tab</kbd>
       </button>
       <button type="button" className="menu-item" role="menuitem" onClick={() => openDraft('sibling')}>
         <Plus size={14} aria-hidden />
@@ -194,7 +197,7 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
             onClick={() => void relevelSelected('indent')}
           >
             <ListIndentIncrease size={14} aria-hidden />
-            收到上一同级下 <kbd>Tab</kbd>
+            收到上一同级下 <kbd>⌥→</kbd>
           </button>
           <button
             type="button"
@@ -205,7 +208,7 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
             onClick={() => void relevelSelected('outdent')}
           >
             <ListIndentDecrease size={14} aria-hidden />
-            升一级 <kbd>⇧Tab</kbd>
+            升一级 <kbd>⌥←</kbd>
           </button>
           <button
             type="button"
@@ -216,7 +219,7 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
             onClick={() => void reorderSelected(-1)}
           >
             <ArrowUp size={14} aria-hidden />
-            上移 <kbd>⌘↑</kbd>
+            上移 <kbd>⌥↑</kbd>
           </button>
           <button
             type="button"
@@ -227,7 +230,7 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
             onClick={() => void reorderSelected(1)}
           >
             <ArrowDown size={14} aria-hidden />
-            下移 <kbd>⌘↓</kbd>
+            下移 <kbd>⌥↓</kbd>
           </button>
         </>
       ) : null}
@@ -250,11 +253,11 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
           role="menuitem"
           onClick={() => {
             toggleReply(selectedId);
-            closeMenu();
+            map.setMenu(null);
           }}
         >
           <UnfoldVertical size={14} aria-hidden />
-          {replyOpen ? '收起回答' : '展开回答'} <kbd>Space</kbd>
+          {replyOpen ? '收起回答' : '展开回答'} <kbd>⇧Space</kbd>
         </button>
       ) : null}
       <button type="button" className="menu-item" role="menuitem" onClick={() => toggleFocus()}>
@@ -318,7 +321,7 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
           className="menu-item"
           role="menuitem"
           onClick={() => {
-            closeMenu();
+            map.setMenu(null);
             void stopNode(selectedId);
           }}
         >
@@ -347,7 +350,7 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
               role="menuitem"
               onClick={() => void answerWithAnotherModel(selectedId, config.id, config.model)}
             >
-              <RefreshCw size={14} aria-hidden />
+              <ProviderMark provider={config.provider} />
               {PROVIDER_LABELS[config.provider]} / {config.model}
             </button>
           ))}
@@ -359,7 +362,7 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
           {nodeLinks.map((link) => {
             const otherId = link.sourceId === selectedId ? link.targetId : link.sourceId;
             return (
-              <button key={link.id} type="button" className="menu-item" role="menuitem" onClick={() => void removeLink(link.id)}>
+              <button key={link.id} type="button" className="menu-item" role="menuitem" onClick={() => void map.removeLink(link.id)}>
                 <Waypoints size={14} aria-hidden />
                 断开和「{shortQuestion(nodes[otherId]?.question)}」
               </button>
@@ -374,54 +377,47 @@ function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
       </button>
     </MenuFrame>
   );
-}
+});
 
 /** 空白画布。缩放、适应、按层折叠、小地图、大纲、演示留在底部工具条。 */
-function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
-  const settings = useCanvasSettings();
-  const openDraft = useWorkspace((state) => state.openDraft);
-  const pasteOutline = useWorkspace((state) => state.pasteOutline);
-  const setNotice = useWorkspace((state) => state.setNotice);
-  const collapseScope = useWorkspace((state) => state.collapseScope);
-  const openFind = useWorkspace((state) => state.openFind);
-  const undo = useWorkspace((state) => state.undo);
-  const redo = useWorkspace((state) => state.redo);
-  const setHelpOpen = useWorkspace((state) => state.setHelpOpen);
-  const hasNodes = useWorkspace((state) => state.nodeOrder.length > 0);
-  const canUndo = useWorkspace((state) => state.undoStack.length > 0);
-  const canRedo = useWorkspace((state) => state.redoStack.length > 0);
-  const selectedId = useWorkspace((state) => state.selectedId);
-  const focusId = useWorkspace((state) => state.focusId);
-  const parentQuestion = useWorkspace((state) => {
-    const parentId = state.selectedId ?? state.focusId;
-    return parentId ? state.nodes[parentId]?.question : undefined;
-  });
+const PaneMenu = observer(function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
+  const map = useService(MapService);
+  const conversations = useService(ConversationService);
+  const prefs = useService(CanvasPrefsService);
+  const settings = prefs.settings;
+  const hasNodes = map.nodeOrder.length > 0;
+  const canUndo = map.undoStack.length > 0;
+  const canRedo = map.redoStack.length > 0;
+  const selectedId = map.selectedId;
+  const focusId = map.focusId;
+  const parentId = selectedId ?? focusId;
+  const parentQuestion = parentId ? map.nodes[parentId]?.question : undefined;
 
   const paste = async () => {
-    closeMenu();
+    map.setMenu(null);
     try {
       const text = await navigator.clipboard.readText();
       const items = parseOutline(text);
       if (items.length === 0) {
-        setNotice('剪贴板里不是大纲。一行一个问题，缩进表示层级');
+        map.setNotice('剪贴板里不是大纲。一行一个问题，缩进表示层级');
         return;
       }
-      await pasteOutline(items);
+      await map.pasteOutline(items);
     } catch {
-      setNotice('读不到剪贴板，可以在画布上直接粘贴');
+      map.setNotice('读不到剪贴板，可以在画布上直接粘贴');
     }
   };
 
   const exportAll = () => {
-    const state = useWorkspace.getState();
-    if (!state.activeId || state.nodeOrder.length === 0) return;
-    const title = state.conversations.find((item) => item.id === state.activeId)?.title ?? '支流对话';
-    downloadMarkdown(title, conversationToMarkdown(title, state.nodes, state.nodeOrder, null));
-    closeMenu();
+    const activeId = conversations.activeId;
+    if (!activeId || map.nodeOrder.length === 0) return;
+    const title = conversations.conversations.find((item) => item.id === activeId)?.title ?? '支流对话';
+    downloadMarkdown(title, conversationToMarkdown(title, map.nodes, map.nodeOrder, null));
+    map.setMenu(null);
   };
 
   const exportPng = () => {
-    closeMenu();
+    map.setMenu(null);
     void canvasExportPng();
   };
 
@@ -433,7 +429,7 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
 
   return (
     <MenuFrame x={x} y={y} label="画布操作">
-      <button type="button" className="menu-item" role="menuitem" onClick={() => openDraft('root')}>
+      <button type="button" className="menu-item" role="menuitem" onClick={() => map.openDraft('root')}>
         <MessageSquarePlus size={14} aria-hidden />
         新建根问题 <kbd>双击</kbd>
       </button>
@@ -458,8 +454,8 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
           role="menuitem"
           disabled={!hasNodes}
           onClick={() => {
-            closeMenu();
-            void collapseScope(mode);
+            map.setMenu(null);
+            void map.collapseScope(mode);
           }}
         >
           <Icon size={14} aria-hidden />
@@ -474,8 +470,8 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
           role="menuitem"
           aria-checked={settings.layout === option.value}
           onClick={() => {
-            setCanvasSettings({ layout: option.value });
-            closeMenu();
+            prefs.patch({ layout: option.value });
+            map.setMenu(null);
           }}
         >
           <GitBranch size={14} aria-hidden style={option.value === 'tb' ? { transform: 'rotate(90deg)' } : undefined} />
@@ -489,7 +485,7 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
         className="menu-item"
         role="menuitem"
         disabled={!hasNodes}
-        onClick={() => openFind()}
+        onClick={() => map.openFind()}
       >
         <Search size={14} aria-hidden />
         在这张图里查找 <kbd>⌘F</kbd>
@@ -500,8 +496,8 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
         role="menuitem"
         disabled={!canUndo}
         onClick={() => {
-          closeMenu();
-          void undo();
+          map.setMenu(null);
+          void map.undo();
         }}
       >
         <Undo2 size={14} aria-hidden />
@@ -513,8 +509,8 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
         role="menuitem"
         disabled={!canRedo}
         onClick={() => {
-          closeMenu();
-          void redo();
+          map.setMenu(null);
+          void map.redo();
         }}
       >
         <Redo2 size={14} aria-hidden />
@@ -534,8 +530,8 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
         className="menu-item"
         role="menuitem"
         onClick={() => {
-          closeMenu();
-          setHelpOpen(true);
+          map.setMenu(null);
+          map.setHelpOpen(true);
         }}
       >
         <CircleHelp size={14} aria-hidden />
@@ -543,31 +539,30 @@ function PaneMenu({ x, y }: Pick<CanvasMenuState, 'x' | 'y'>) {
       </button>
     </MenuFrame>
   );
-}
+});
 
-function EdgeMenu({ x, y, linkId }: { x: number; y: number; linkId: string }) {
-  const link = useWorkspace((state) => state.links.find((item) => item.id === linkId));
-  const sourceQuestion = useWorkspace((state) => (link ? state.nodes[link.sourceId]?.question : undefined));
-  const targetQuestion = useWorkspace((state) => (link ? state.nodes[link.targetId]?.question : undefined));
-  const revealNode = useWorkspace((state) => state.revealNode);
-  const removeLink = useWorkspace((state) => state.removeLink);
+const EdgeMenu = observer(function EdgeMenu({ x, y, linkId }: { x: number; y: number; linkId: string }) {
+  const map = useService(MapService);
+  const link = map.links.find((item) => item.id === linkId);
+  const sourceQuestion = link ? map.nodes[link.sourceId]?.question : undefined;
+  const targetQuestion = link ? map.nodes[link.targetId]?.question : undefined;
 
   if (!link) return null;
   return (
     <MenuFrame x={x} y={y} label="关系线">
-      <button type="button" className="menu-item" role="menuitem" onClick={() => void revealNode(link.sourceId)}>
+      <button type="button" className="menu-item" role="menuitem" onClick={() => void map.revealNode(link.sourceId)}>
         <Focus size={14} aria-hidden />
         选中起点「{shortQuestion(sourceQuestion)}」
       </button>
-      <button type="button" className="menu-item" role="menuitem" onClick={() => void revealNode(link.targetId)}>
+      <button type="button" className="menu-item" role="menuitem" onClick={() => void map.revealNode(link.targetId)}>
         <Focus size={14} aria-hidden />
         选中终点「{shortQuestion(targetQuestion)}」
       </button>
       <div className="sep" />
-      <button type="button" className="menu-item is-danger" role="menuitem" onClick={() => void removeLink(link.id)}>
+      <button type="button" className="menu-item is-danger" role="menuitem" onClick={() => void map.removeLink(link.id)}>
         <Waypoints size={14} aria-hidden />
         断开这条关系线
       </button>
     </MenuFrame>
   );
-}
+});

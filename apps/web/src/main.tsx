@@ -1,11 +1,12 @@
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import { observer, useService } from '@rabjs/react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { setUnauthorizedHandler } from './api/client.js';
 import { AuthPage } from './AuthPage.js';
-import { useSession } from './store/session.js';
-import { Workspace } from './Workspace.js';
-import './lib/theme.js';
+import { registerAppServices } from './services/register-app.js';
+import { SessionService } from './services/session.service.js';
+import { Workspace } from './workspace/Workspace.js';
 import './styles/index.css';
 
 declare global {
@@ -16,6 +17,8 @@ declare global {
 
 window.__tributaryErrors = [];
 window.addEventListener('error', (event) => {
+  // 浏览器在一帧里收不完 ResizeObserver 通知时会抛这条，不是应用异常。
+  if (event.message.startsWith('ResizeObserver loop')) return;
   window.__tributaryErrors.push(event.message);
 });
 window.addEventListener('unhandledrejection', (event) => {
@@ -23,19 +26,18 @@ window.addEventListener('unhandledrejection', (event) => {
   window.__tributaryErrors.push(reason instanceof Error ? reason.message : String(reason));
 });
 
-function Gate() {
-  const ready = useSession((state) => state.ready);
-  const user = useSession((state) => state.user);
-  const load = useSession((state) => state.load);
-  const clear = useSession((state) => state.clear);
+registerAppServices();
+
+const Gate = observer(function Gate() {
+  const session = useService(SessionService);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => clear());
-    void load();
-  }, [clear, load]);
+    setUnauthorizedHandler(() => session.clear());
+    void session.load();
+  }, [session]);
 
-  if (!ready) return <main className="auth-screen" />;
-  if (!user) return <AuthPage />;
+  if (!session.ready) return <main className="auth-screen" />;
+  if (!session.user) return <AuthPage />;
   return (
     <Routes>
       <Route element={<Workspace />}>
@@ -45,7 +47,7 @@ function Gate() {
       </Route>
     </Routes>
   );
-}
+});
 
 const root = document.getElementById('root');
 if (!root) throw new Error('缺少根节点');

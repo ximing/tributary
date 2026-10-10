@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
+import { useService } from '@rabjs/react';
 import { parseOutline, shortcutForKey } from '@tributary/domain';
 import { canvasFit, canvasZoomIn, canvasZoomOut } from '../lib/canvasBus.js';
-import { toggleRail } from '../lib/rail.js';
-import { toggleTheme } from '../lib/theme.js';
-import { useWorkspace } from '../store/workspace.js';
+import { RailService } from '../services/rail.service.js';
+import { ThemeService } from '../services/theme.service.js';
+import { MapService } from '../workspace/map.service.js';
+import { SearchService } from '../workspace/search.service.js';
 
 export interface HotkeyActions {
   openSettings: () => void;
@@ -11,26 +13,31 @@ export interface HotkeyActions {
 
 /**
  * 全局快捷键。输入控件聚焦时其余按键放行（Esc 失焦）；⌘K 始终打开搜索。
+ * 节点单键对齐常见脑图：Tab 子问题，Enter 同级，Space / F2 编辑。
  * draft 输入框自带 Enter/Esc 处理并 stopPropagation，不会走到这里。
  */
 export function useHotkeys(actions: HotkeyActions): void {
+  const map = useService(MapService);
+  const search = useService(SearchService);
+  const rail = useService(RailService);
+  const theme = useService(ThemeService);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const state = useWorkspace.getState();
       if (new URLSearchParams(window.location.search).has('settings')) return;
-      if (state.confirm) return; // 确认框打开时按键由 ConfirmDialog 自己处理
-      if (state.presentId) return;
+      if (map.confirm) return;
+      if (map.presentId) return;
 
       const mod = event.metaKey || event.ctrlKey;
       if (mod && !event.altKey && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        state.setSearchOpen(!state.searchOpen);
+        search.setOpen(!search.searchOpen);
         return;
       }
-      if (state.searchOpen) {
+      if (search.searchOpen) {
         if (event.key === 'Escape') {
           event.preventDefault();
-          state.setSearchOpen(false);
+          search.setOpen(false);
         }
         return;
       }
@@ -43,8 +50,8 @@ export function useHotkeys(actions: HotkeyActions): void {
           return;
         }
       }
-      if (state.helpOpen) {
-        if (event.key === 'Escape' || event.key === '?') state.setHelpOpen(false);
+      if (map.helpOpen) {
+        if (event.key === 'Escape' || event.key === '?') map.setHelpOpen(false);
         return;
       }
       if (mod && event.key === ',') {
@@ -69,122 +76,126 @@ export function useHotkeys(actions: HotkeyActions): void {
       }
       if (event.key === '[' || event.key === ']') {
         event.preventDefault();
-        toggleRail();
+        rail.toggle();
         return;
       }
       if (event.key === 'D' && event.shiftKey && !mod) {
         event.preventDefault();
-        toggleTheme();
+        theme.toggle();
         return;
       }
-      if (event.key === 'Tab') {
+      // Shift+Tab 在大纲软件里是升级。这里 Tab 已经是「子问题」，不再挪层级。
+      if (event.key === 'Tab' && event.shiftKey) {
         event.preventDefault();
-        const picked = replySelection();
-        if (picked && !event.shiftKey) {
-          state.openDraft('child', picked.id, picked.text);
-          window.getSelection()?.removeAllRanges();
-          return;
-        }
-        if (state.selectedId) void state.relevelSelected(event.shiftKey ? 'outdent' : 'indent');
-        return;
-      }
-      if (mod && event.key === 'Enter') {
-        event.preventDefault();
-        state.openDraft(state.selectedId ? 'child' : 'root');
         return;
       }
       if (mod && (event.key === 'f' || event.key === 'F')) {
         event.preventDefault();
-        state.openFind();
+        map.openFind();
         return;
       }
       if (mod && (event.key === 'g' || event.key === 'G')) {
         event.preventDefault();
-        if (state.findOpen || state.findQuery) state.stepFind(event.shiftKey ? -1 : 1);
-        else state.openFind();
+        if (map.findOpen || map.findQuery) map.stepFind(event.shiftKey ? -1 : 1);
+        else map.openFind();
         return;
       }
-      if (mod && (event.key === 'c' || event.key === 'C') && state.selectedId) {
+      if (mod && (event.key === 'c' || event.key === 'C') && map.selectedId) {
         const selectedText = window.getSelection()?.toString().trim();
         if (!selectedText) {
           event.preventDefault();
-          const node = state.nodes[state.selectedId];
-          if (node) void state.copyPlainText(event.shiftKey ? (node.reply ?? '') : node.question);
+          const node = map.nodes[map.selectedId];
+          if (node) void map.copyPlainText(event.shiftKey ? (node.reply ?? '') : node.question);
         }
         return;
       }
-      if (mod && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      // ⌥↑↓ 是 XMind / GitMind 的同级排序。⌘↑↓ 保留，避免旧习惯直接失效。
+      if (!event.shiftKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown') && (event.altKey || mod)) {
         event.preventDefault();
-        if (state.selectedId) void state.reorderSelected(event.key === 'ArrowUp' ? -1 : 1);
+        if (map.selectedId) void map.reorderSelected(event.key === 'ArrowUp' ? -1 : 1);
+        return;
+      }
+      // 深度用左右，不占用 Tab。⌥→ 收到上一同级下，⌥← 升一级。
+      if (!mod && event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+        event.preventDefault();
+        if (map.selectedId) void map.relevelSelected(event.key === 'ArrowRight' ? 'indent' : 'outdent');
         return;
       }
       if (mod && (event.key === 'z' || event.key === 'Z')) {
         event.preventDefault();
-        if (event.shiftKey) void state.redo();
-        else void state.undo();
+        if (event.shiftKey) void map.redo();
+        else void map.undo();
         return;
       }
       if (mod && (event.key === 'd' || event.key === 'D') && !event.shiftKey) {
         event.preventDefault();
-        if (state.selectedId) void state.copyBranch(state.selectedId);
+        if (map.selectedId) void map.copyBranch(map.selectedId);
         return;
       }
       if (mod && event.key === '\\') {
         event.preventDefault();
-        state.toggleFocus();
+        map.toggleFocus();
         return;
       }
-      if (event.key === 'Escape' && state.linkFrom) {
+      if (event.key === 'Escape' && map.linkFrom) {
         event.preventDefault();
-        state.cancelLink();
+        map.cancelLink();
         return;
       }
-      if (event.key === 'Escape' && state.findOpen) {
+      if (event.key === 'Escape' && map.findOpen) {
         event.preventDefault();
-        state.closeFind();
+        map.closeFind();
         return;
       }
-      if ((event.key === 'Delete' || event.key === 'Backspace') && state.selectedId) {
+      if ((event.key === 'Delete' || event.key === 'Backspace') && map.selectedId) {
         event.preventDefault();
-        void state.removeNode(state.selectedId);
+        map.removeNode(map.selectedId);
         return;
       }
-      // ⌘ . 不应再落到「折叠」。Shift 仍留给 ?
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const shortcut = shortcutForKey(event.key);
       if (!shortcut) return;
       event.preventDefault();
       switch (shortcut.id) {
-        case 'indent':
-          if (state.selectedId) void state.relevelSelected('indent');
+        case 'child': {
+          const picked = replySelection();
+          if (picked) {
+            map.openDraft('child', picked.id, picked.text);
+            window.getSelection()?.removeAllRanges();
+            break;
+          }
+          map.openDraft(map.selectedId ? 'child' : 'root');
           break;
+        }
         case 'sibling':
-          state.openDraft(state.selectedId ? 'sibling' : 'root');
+          map.openDraft(map.selectedId ? 'sibling' : 'root');
           break;
-        case 'toggle':
-          if (state.selectedId) state.toggleReply(state.selectedId);
+        case 'edit':
+          if (!map.selectedId) break;
+          // Space 编辑；⇧Space 留给「展开/收起回复」，这是对话节点特有的动作。
+          if (event.shiftKey && event.key === ' ') map.toggleReply(map.selectedId);
+          else map.setEditing(map.selectedId);
           break;
         case 'collapse':
-          if (state.selectedId) void state.toggleCollapse(state.selectedId);
+          if (map.selectedId) void map.toggleCollapse(map.selectedId);
           break;
         case 'up':
         case 'down':
         case 'left':
         case 'right':
-          state.navigateSelection(shortcut.id);
+          map.navigateSelection(shortcut.id);
           break;
         case 'deselect':
-          state.select(null);
+          map.select(null);
           break;
         case 'help':
-          state.setHelpOpen(true);
+          map.setHelpOpen(true);
           break;
       }
     };
     const onPaste = (event: ClipboardEvent) => {
-      const state = useWorkspace.getState();
       if (new URLSearchParams(window.location.search).has('settings')) return;
-      if (state.confirm || state.helpOpen) return;
+      if (map.confirm || map.helpOpen) return;
       const target = event.target;
       if (target instanceof HTMLElement) {
         const tag = target.tagName;
@@ -194,7 +205,7 @@ export function useHotkeys(actions: HotkeyActions): void {
       const items = parseOutline(text);
       if (items.length === 0) return;
       event.preventDefault();
-      void state.pasteOutline(items);
+      void map.pasteOutline(items);
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('paste', onPaste);
@@ -202,7 +213,7 @@ export function useHotkeys(actions: HotkeyActions): void {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('paste', onPaste);
     };
-  }, [actions]);
+  }, [actions, map, search, rail, theme]);
 }
 
 /** 回答里划中的文字。用来「就此追问」，不拿去缩进。 */
