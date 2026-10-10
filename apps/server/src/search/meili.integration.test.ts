@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { createMeiliClient } from './meili.js';
 import { activeIndexUid, ensureSearchIndex, indexNode, removeNode, searchNodes, setSearchClient } from './index-nodes.js';
 
+const PROD_INDEX_UID = 'tributary_nodes_prod';
 const PHRASE = '青柠河湾的渡口灯';
 const nodeId = randomUUID();
 const conversationId = randomUUID();
@@ -24,9 +25,8 @@ afterAll(async () => {
 
 it('indexes a Chinese phrase on the test uid and finds it by a word inside the phrase', async () => {
   expect(activeIndexUid()).toBe('tributary_nodes_test');
-  expect(config.prodIndexUid).toBe('tributary_nodes_prod');
-  expect(activeIndexUid()).not.toBe(config.prodIndexUid);
-  const prodBefore = await stats(config.prodIndexUid);
+  expect(activeIndexUid()).not.toBe(PROD_INDEX_UID);
+  const prodBefore = await stats(PROD_INDEX_UID);
 
   const seen: string[] = [];
   const original = globalThis.fetch.bind(globalThis);
@@ -43,18 +43,21 @@ it('indexes a Chinese phrase on the test uid and finds it by a word inside the p
     }),
   );
   await ensureSearchIndex();
-  await indexNode({ id: nodeId, conversationId, question: PHRASE, reply: '河边的回答' });
-  const hit = await searchNodes('渡口');
-  const miss = await searchNodes('绝无此词zzz');
+  const userId = randomUUID();
+  await indexNode({ id: nodeId, conversationId, userId, question: PHRASE, reply: '河边的回答' });
+  const hit = await searchNodes('渡口', userId);
+  const miss = await searchNodes('绝无此词zzz', userId);
+  const other = await searchNodes('渡口', randomUUID());
   expect(hit.some((item) => item.nodeId === nodeId && item.question === PHRASE)).toBe(true);
   expect(miss.some((item) => item.nodeId === nodeId)).toBe(false);
+  expect(other.some((item) => item.nodeId === nodeId)).toBe(false);
 
   expect(seen.length).toBeGreaterThan(0);
   for (const url of seen) {
     const parsed = new URL(url);
     expect(parsed.hostname).toBe(host.hostname);
     expect(parsed.port).toBe(host.port || '7700');
-    expect(url.includes(config.prodIndexUid)).toBe(false);
+    expect(url.includes(PROD_INDEX_UID)).toBe(false);
   }
 
   const health = await fetch(`${config.meiliHost}/health`);
@@ -66,6 +69,6 @@ it('indexes a Chinese phrase on the test uid and finds it by a word inside the p
   });
   expect(denied.status).toBe(401);
 
-  const prodAfter = await stats(config.prodIndexUid);
+  const prodAfter = await stats(PROD_INDEX_UID);
   expect(prodAfter).toEqual(prodBefore);
 });

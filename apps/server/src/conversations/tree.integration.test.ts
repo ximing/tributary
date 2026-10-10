@@ -1,12 +1,16 @@
+import { randomUUID } from 'node:crypto';
+import { inArray } from 'drizzle-orm';
 import { afterAll, expect, it } from 'vitest';
-import { closeDb, pool } from '../db/client.js';
+import { registerUser } from '../auth/service.js';
+import { closeDb, db, pool } from '../db/client.js';
 import { ensureSchema } from '../db/ensure.js';
-import { completeQuestionNode, createConversation, createQuestionNode, deleteConversation, loadConversation } from './service.js';
+import { users } from '../db/schema.js';
+import { completeQuestionNode, createConversation, createQuestionNode, loadConversation } from './service.js';
 
-const created: string[] = [];
+const userIds: string[] = [];
 
 afterAll(async () => {
-  for (const id of created) await deleteConversation(id);
+  if (userIds.length > 0) await db.delete(users).where(inArray(users.id, userIds));
   await closeDb();
 });
 
@@ -20,15 +24,22 @@ it('reloads a question, its reply, a follow-up, and a sibling from the test data
   expect(who?.rolsuper).toBe(false);
   expect(who?.current_database).toBe('tributary_test');
 
-  const conversation = await createConversation('test:tree');
-  created.push(conversation.id);
+  const account = await registerUser({
+    email: `tree-${randomUUID()}@example.com`,
+    password: 'password-1',
+    displayName: '树',
+  });
+  userIds.push(account.user.id);
+  const conversation = await createConversation(account.user.id, 'test:tree');
   const root = await createQuestionNode({
+    userId: account.user.id,
     conversationId: conversation.id,
     question: '根问题',
     relation: 'root',
   });
   const rootDone = await completeQuestionNode(root.id, { reply: '根回复', status: 'done', model: 'stub', providerName: 'stub', promptTokens: 1, completionTokens: 1, totalTokens: 2 });
   const child = await createQuestionNode({
+    userId: account.user.id,
     conversationId: conversation.id,
     question: '追问',
     relation: 'child',
@@ -36,6 +47,7 @@ it('reloads a question, its reply, a follow-up, and a sibling from the test data
   });
   await completeQuestionNode(child.id, { reply: '追问回复', status: 'done' });
   const sibling = await createQuestionNode({
+    userId: account.user.id,
     conversationId: conversation.id,
     question: '同级',
     relation: 'sibling',
@@ -43,7 +55,7 @@ it('reloads a question, its reply, a follow-up, and a sibling from the test data
   });
   await completeQuestionNode(sibling.id, { reply: '同级回复', status: 'done' });
 
-  const reloaded = await loadConversation(conversation.id);
+  const reloaded = await loadConversation(conversation.id, account.user.id);
   expect(reloaded?.nodes).toHaveLength(3);
   const byQuestion = new Map(reloaded?.nodes.map((node) => [node.question, node]));
   expect(byQuestion.get('根问题')).toMatchObject({ reply: '根回复', parentId: null, id: rootDone.id });

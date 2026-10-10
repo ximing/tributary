@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { resolveParentId, type NodeRelation } from '@tributary/domain';
-import { ask, AskError, DEFAULT_SYSTEM_PROMPT } from '../agent/ask.js';
 import { db } from '../db/client.js';
 import { conversations, nodes, usageCalls } from '../db/schema.js';
-import { getProviderSecret } from '../providers/service.js';
-import { indexNode } from '../search/index-nodes.js';
+import { enqueueJob } from '../jobs/enqueue.js';
+import { getModelForUser } from '../providers/service.js';
+import { indexNode, removeNode } from '../search/index-nodes.js';
 
 export interface NodeRecord {
   id: string;
@@ -40,26 +40,7 @@ function toNode(row: typeof nodes.$inferSelect): NodeRecord {
   };
 }
 
-export async function listConversations(): Promise<ConversationRecord[]> {
-  const rows = await db.select().from(conversations).orderBy(asc(conversations.updatedAt));
-  return rows
-    .map((row) => ({
-      id: row.id,
-      title: row.title,
-      createdAt: row.createdAt.toISOString(),
-      updatedAt: row.updatedAt.toISOString(),
-    }))
-    .reverse();
-}
-
-export async function createConversation(title?: string): Promise<ConversationRecord> {
-  const id = randomUUID();
-  const now = new Date();
-  const [row] = await db
-    .insert(conversations)
-    .values({ id, title: title?.trim() || '未命名对话', createdAt: now, updatedAt: now })
-    .returning();
-  if (!row) throw new Error('创建对话失败');
+function toConversation(row: typeof conversations.$inferSelect): ConversationRecord {
   return {
     id: row.id,
     title: row.title,
@@ -68,29 +49,42 @@ export async function createConversation(title?: string): Promise<ConversationRe
   };
 }
 
-export async function loadConversation(id: string): Promise<{ conversation: ConversationRecord; nodes: NodeRecord[] } | null> {
-  const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
-  if (!conversation) return null;
-  const rows = await db.select().from(nodes).where(eq(nodes.conversationId, id)).orderBy(asc(nodes.position), asc(nodes.createdAt));
-  return {
-    conversation: {
-      id: conversation.id,
-      title: conversation.title,
-      createdAt: conversation.createdAt.toISOString(),
-      updatedAt: conversation.updatedAt.toISOString(),
-    },
-    nodes: rows.map(toNode),
-  };
+export async function listConversations(userId: string): Promise<ConversationRecord[]> {
+  const rows = await db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.userId, userId))
+    .orderBy(desc(conversations.updatedAt));
+  return rows.map(toConversation);
 }
 
-async function touchConversation(conversationId: string, title?: string): Promise<void> {
-  await db
-    .update(conversations)
-    .set({ updatedAt: new Date(), ...(title ? { title } : {}) })
-    .where(eq(conversations.id, conversationId));
+export async function createConversation(userId: string, title?: string): Promise<ConversationRecord> {
+  const id = randomUUID();
+  const now = new Date();
+  const [row] = await db
+    .insert(conversations)
+    .values({ id, userId, title: title?.trim() || '未命名对话', createdAt: now, updatedAt: now })
+    .returning();
+  if (!row) throw new Error('创建对话失败');
+  return toConversation(row);
+}
+
+export async function loadConversation(
+  id: string,
+  userId: string,
+): Promise<{ conversation: ConversationRecord; nodes: NodeRecord[] } | null> {
+  const [conversation] = await db
+    .select()
+    .from(conversations)
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)))
+    .limit(1);
+  if (!conversation) return null;
+  const rows = await db.select().from(nodes).where(eq(nodes.conversationId, id)).orderBy(asc(nodes.position), asc(nodes.createdAt));
+  return { conversation: toConversation(conversation), nodes: rows.map(toNode) };
 }
 
 export async function createQuestionNode(input: {
+  userId: string;
   conversationId: string;
   question: string;
   relation: NodeRelation;
@@ -98,8 +92,19 @@ export async function createQuestionNode(input: {
   providerId?: string | null;
   model?: string | null;
 }): Promise<NodeRecord> {
-  const loaded = await loadConversation(input.conversationId);
+  const loaded = await loadConversation(input.conversationId, input.userId);
   if (!loaded) throw new Error('对话不存在');
+  let providerId = input.providerId ?? null;
+  let model = input.model ?? null;
+  if (providerId) {
+    const config = await getModelForUser(providerId, input.userId);
+    if (!config) throw new Error('模型配置不存在');
+    if (model && model !== config.model) throw new Error('模型与配置不一致');
+    model = config.model;
+  } else {
+    providerId = null;
+    model = null;
+  }
   const tree = loaded.nodes.map((node) => ({
     id: node.id,
     parentId: node.parentId,
@@ -110,27 +115,33 @@ export async function createQuestionNode(input: {
   const parentId = resolveParentId(tree, input.relation, input.selectedNodeId ?? null);
   const siblings = loaded.nodes.filter((node) => node.parentId === parentId);
   const id = randomUUID();
-  const [row] = await db
-    .insert(nodes)
-    .values({
-      id,
-      conversationId: input.conversationId,
-      parentId,
-      question: input.question,
-      reply: null,
-      status: 'pending',
-      providerId: input.providerId ?? null,
-      model: input.model ?? null,
-      collapsed: false,
-      position: siblings.length,
-    })
-    .returning();
-  if (!row) throw new Error('创建节点失败');
-  if (parentId === null && (loaded.conversation.title === '未命名对话' || loaded.nodes.length === 0)) {
-    await touchConversation(input.conversationId, input.question.slice(0, 40));
-  } else {
-    await touchConversation(input.conversationId);
-  }
+  const title = parentId === null && (loaded.conversation.title === '未命名对话' || loaded.nodes.length === 0) ? input.question.slice(0, 40) : undefined;
+  const row = await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(nodes)
+      .values({
+        id,
+        conversationId: input.conversationId,
+        parentId,
+        question: input.question,
+        reply: null,
+        status: 'pending',
+        providerId,
+        model,
+        collapsed: false,
+        position: siblings.length,
+      })
+      .returning();
+    if (!created) throw new Error('创建节点失败');
+    await tx
+      .update(conversations)
+      .set({ updatedAt: new Date(), ...(title ? { title } : {}) })
+      .where(eq(conversations.id, input.conversationId));
+    if (providerId && model) {
+      await enqueueJob(tx, { userId: input.userId, type: 'answer', payload: { nodeId: id } });
+    }
+    return created;
+  });
   return toNode(row);
 }
 
@@ -164,62 +175,96 @@ export async function completeQuestionNode(
     });
   }
   try {
-    await indexNode({
-      id: row.id,
-      conversationId: row.conversationId,
-      question: row.question,
-      reply: row.reply,
-    });
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, row.conversationId)).limit(1);
+    if (conversation?.userId) {
+      await indexNode({
+        id: row.id,
+        conversationId: row.conversationId,
+        userId: conversation.userId,
+        question: row.question,
+        reply: row.reply,
+      });
+    }
   } catch (error) {
     console.error('search.index_failed', error instanceof Error ? error.message : error);
   }
   return toNode(row);
 }
 
-export async function submitQuestion(input: {
-  conversationId: string;
-  question: string;
-  relation: NodeRelation;
-  selectedNodeId?: string | null;
-  providerId?: string | null;
-  model?: string | null;
-}): Promise<NodeRecord> {
-  const node = await createQuestionNode(input);
-  if (!input.providerId || !input.model) {
-    return completeQuestionNode(node.id, { reply: '未选择模型', status: 'error' });
-  }
-  const provider = await getProviderSecret(input.providerId);
-  if (!provider) {
-    return completeQuestionNode(node.id, { reply: '模型配置不存在', status: 'error' });
-  }
-  try {
-    const answer = await ask({
-      apiKey: provider.apiKey,
-      baseUrl: provider.baseUrl,
-      modelId: input.model,
-      systemPrompt: DEFAULT_SYSTEM_PROMPT,
-      question: input.question,
-    });
-    return completeQuestionNode(node.id, {
-      reply: answer.text,
-      status: 'done',
-      providerName: provider.name,
-      model: input.model,
-      promptTokens: answer.promptTokens,
-      completionTokens: answer.completionTokens,
-      totalTokens: answer.totalTokens,
-    });
-  } catch (error) {
-    const message = error instanceof AskError ? error.message : error instanceof Error ? error.message : '模型调用失败';
-    return completeQuestionNode(node.id, { reply: message, status: 'error' });
-  }
+export async function getNode(nodeId: string): Promise<NodeRecord | null> {
+  const [row] = await db.select().from(nodes).where(eq(nodes.id, nodeId)).limit(1);
+  return row ? toNode(row) : null;
 }
 
-export async function setCollapsed(nodeId: string, collapsed: boolean): Promise<NodeRecord | null> {
+/** 该节点所在对话的全部节点。回答时用它沿父链组装上下文。 */
+export async function listConversationNodes(nodeId: string): Promise<NodeRecord[] | null> {
+  const [row] = await db.select({ conversationId: nodes.conversationId }).from(nodes).where(eq(nodes.id, nodeId)).limit(1);
+  if (!row) return null;
+  const rows = await db
+    .select()
+    .from(nodes)
+    .where(eq(nodes.conversationId, row.conversationId))
+    .orderBy(asc(nodes.position), asc(nodes.createdAt));
+  return rows.map(toNode);
+}
+
+export async function nodeOwnedBy(nodeId: string, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: nodes.id })
+    .from(nodes)
+    .innerJoin(conversations, eq(nodes.conversationId, conversations.id))
+    .where(and(eq(nodes.id, nodeId), eq(conversations.userId, userId)))
+    .limit(1);
+  return Boolean(row);
+}
+
+export async function writePendingReply(nodeId: string, reply: string | null): Promise<void> {
+  await db.update(nodes).set({ reply }).where(and(eq(nodes.id, nodeId), eq(nodes.status, 'pending')));
+}
+
+export async function markPending(nodeId: string): Promise<NodeRecord | null> {
+  const [row] = await db.update(nodes).set({ status: 'pending', reply: null }).where(eq(nodes.id, nodeId)).returning();
+  return row ? toNode(row) : null;
+}
+
+export async function setCollapsed(nodeId: string, userId: string, collapsed: boolean): Promise<NodeRecord | null> {
+  if (!(await nodeOwnedBy(nodeId, userId))) return null;
   const [row] = await db.update(nodes).set({ collapsed }).where(eq(nodes.id, nodeId)).returning();
   return row ? toNode(row) : null;
 }
 
-export async function deleteConversation(id: string): Promise<void> {
-  await db.delete(conversations).where(eq(conversations.id, id));
+export async function deleteConversation(id: string, userId: string): Promise<void> {
+  await db.delete(conversations).where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
+}
+
+/** 删除节点及其整棵子树，返回被删的节点 id 列表；无权限或不存在返回 null */
+export async function deleteNodeSubtree(nodeId: string, userId: string): Promise<string[] | null> {
+  if (!(await nodeOwnedBy(nodeId, userId))) return null;
+  const [row] = await db.select().from(nodes).where(eq(nodes.id, nodeId)).limit(1);
+  if (!row) return null;
+  const siblings = await db.select({ id: nodes.id, parentId: nodes.parentId }).from(nodes).where(eq(nodes.conversationId, row.conversationId));
+  const childrenOf = new Map<string, string[]>();
+  for (const sibling of siblings) {
+    if (!sibling.parentId) continue;
+    const list = childrenOf.get(sibling.parentId) ?? [];
+    list.push(sibling.id);
+    childrenOf.set(sibling.parentId, list);
+  }
+  const ids: string[] = [];
+  const queue = [nodeId];
+  while (queue.length > 0) {
+    const id = queue.pop()!;
+    ids.push(id);
+    queue.push(...(childrenOf.get(id) ?? []));
+  }
+  await db.delete(nodes).where(inArray(nodes.id, ids));
+  await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, row.conversationId));
+  for (const id of ids) {
+    try {
+      await removeNode(id);
+    } catch (error) {
+      console.error('search.remove_failed', error instanceof Error ? error.message : error);
+    }
+  }
+  return ids;
 }

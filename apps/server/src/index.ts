@@ -10,5 +10,5 @@ try {
 } catch (error) {
   console.error('search.ensure_failed', error instanceof Error ? error.message : error);
 }
-await app.listen({ port: config.port, host: '127.0.0.1' });
-console.log(`tributary listening on ${String(config.port)}`);
+await app.listen({ port: config.port, host: config.host });
+console.log(`tributary listening on ${config.host}:${String(config.port)}`);

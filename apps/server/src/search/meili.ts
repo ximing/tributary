@@ -1,6 +1,7 @@
 export interface MeiliDocument {
   id: string;
   conversationId: string;
+  userId: string;
   question: string;
   reply: string | null;
   text: string;
@@ -22,7 +23,7 @@ export interface MeiliClientOptions {
 
 const INDEX_SETTINGS = {
   searchableAttributes: ['question', 'reply', 'text'],
-  filterableAttributes: ['conversationId', 'id'],
+  filterableAttributes: ['conversationId', 'id', 'userId'],
   localizedAttributes: [{ attributePatterns: ['*'], locales: ['cmn'] }],
 };
 
@@ -110,8 +111,8 @@ export function createMeiliClient(options: MeiliClientOptions) {
     async remove(id: string): Promise<void> {
       await submit('DELETE', `/indexes/${indexUid}/documents/${encodeURIComponent(id)}`);
     },
-    async search(q: string): Promise<MeiliHit[]> {
-      const res = await call('POST', `/indexes/${indexUid}/search`, { q, limit: 20 });
+    async search(q: string, filter?: string): Promise<MeiliHit[]> {
+      const res = await call('POST', `/indexes/${indexUid}/search`, { q, limit: 20, ...(filter ? { filter } : {}) });
       if (res.status >= 400) throw new Error(`meili search failed: ${String(res.status)}`);
       const hits = (res.json as { hits?: unknown }).hits;
       if (!Array.isArray(hits)) return [];

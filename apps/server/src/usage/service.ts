@@ -1,12 +1,13 @@
 import { desc, eq } from 'drizzle-orm';
-import { sumUsage } from '@tributary/domain';
+import { groupUsage, sumUsage, type UsageGroup } from '@tributary/domain';
 import { db } from '../db/client.js';
-import { usageCalls } from '../db/schema.js';
+import { conversations, nodes, usageCalls } from '../db/schema.js';
 
 export interface UsageView {
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
+  byModel: UsageGroup[];
   calls: {
     id: string;
     nodeId: string;
@@ -15,23 +16,28 @@ export interface UsageView {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
+    createdAt: string;
   }[];
 }
 
-export async function usageForNode(nodeId: string): Promise<UsageView['calls']> {
-  const rows = await db.select().from(usageCalls).where(eq(usageCalls.nodeId, nodeId));
-  return rows.map(toCall);
-}
-
-export async function readUsage(): Promise<UsageView> {
-  const rows = await db.select().from(usageCalls).orderBy(desc(usageCalls.createdAt));
-  const calls = rows.map(toCall);
-  const totals = sumUsage(calls);
-  return { ...totals, calls };
-}
-
-function toCall(row: typeof usageCalls.$inferSelect): UsageView['calls'][number] {
-  return {
+export async function readUsage(userId: string): Promise<UsageView> {
+  const rows = await db
+    .select({
+      id: usageCalls.id,
+      nodeId: usageCalls.nodeId,
+      providerName: usageCalls.providerName,
+      model: usageCalls.model,
+      promptTokens: usageCalls.promptTokens,
+      completionTokens: usageCalls.completionTokens,
+      totalTokens: usageCalls.totalTokens,
+      createdAt: usageCalls.createdAt,
+    })
+    .from(usageCalls)
+    .innerJoin(nodes, eq(usageCalls.nodeId, nodes.id))
+    .innerJoin(conversations, eq(nodes.conversationId, conversations.id))
+    .where(eq(conversations.userId, userId))
+    .orderBy(desc(usageCalls.createdAt));
+  const calls = rows.map((row) => ({
     id: row.id,
     nodeId: row.nodeId,
     providerName: row.providerName,
@@ -39,5 +45,7 @@ function toCall(row: typeof usageCalls.$inferSelect): UsageView['calls'][number]
     promptTokens: row.promptTokens,
     completionTokens: row.completionTokens,
     totalTokens: row.totalTokens,
-  };
+    createdAt: row.createdAt.toISOString(),
+  }));
+  return { ...sumUsage(calls), byModel: groupUsage(calls), calls };
 }

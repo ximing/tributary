@@ -28,9 +28,10 @@ export async function indexNode(doc: Omit<MeiliDocument, 'text'>): Promise<void>
   });
 }
 
-export async function searchNodes(q: string): Promise<MeiliHit[]> {
+export async function searchNodes(q: string, userId: string): Promise<MeiliHit[]> {
   if (!q.trim() || !config.meiliApiKey) return [];
-  return client.search(q.trim());
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return [];
+  return client.search(q.trim(), `userId = "${userId}"`);
 }
 
 export async function removeNode(id: string): Promise<void> {

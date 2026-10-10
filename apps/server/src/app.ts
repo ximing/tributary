@@ -7,7 +7,7 @@ import { registerRoutes } from './routes.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: false });
-  await app.register(cors, { origin: true });
+  await app.register(cors, { origin: true, credentials: true });
   await registerRoutes(app);
   if (existsSync(config.webDist)) {
     await app.register(fastifyStatic, { root: config.webDist });
