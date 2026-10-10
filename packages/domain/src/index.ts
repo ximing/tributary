@@ -44,11 +44,14 @@ export {
 } from './tree.js';
 export { groupUsage, sumUsage, type UsageCall, type UsageGroup } from './usage.js';
 export {
+  KIMI_MODELS,
   MODEL_PROVIDERS,
   PROVIDER_BASE_URLS,
   PROVIDER_LABELS,
+  PROVIDER_MODEL_OPTIONS,
   PROVIDER_MODELS,
   isModelProvider,
+  providerFromLabel,
   resolveBaseUrl,
   type ModelProvider,
 } from './providers.js';
