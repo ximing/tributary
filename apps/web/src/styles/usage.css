@@ -1,0 +1,85 @@
+/* ---------- 用量页 ---------- */
+.usage-page {
+  min-height: 100%;
+  background: var(--bg);
+  padding: var(--s6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.usage-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.usage-head .mark {
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-s);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-serif);
+  font-size: 19px;
+  font-weight: 700;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+}
+
+.usage-head h1 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+}
+
+.usage-head .btn-ghost {
+  margin-left: auto;
+  text-decoration: none;
+}
+
+.usage-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: var(--s4);
+  max-width: 900px;
+}
+
+.usage-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  box-shadow: var(--shadow-1);
+  padding: var(--s4);
+}
+
+.usage-card.is-total {
+  border-color: var(--accent);
+}
+
+.usage-card .label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.usage-card.is-total .label {
+  color: var(--accent-ink);
+}
+
+.usage-card .num {
+  margin-top: var(--s2);
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.usage-card.is-total .num {
+  color: var(--accent);
+}

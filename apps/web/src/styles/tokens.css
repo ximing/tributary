@@ -1,0 +1,89 @@
+/* ============================================================
+   设计令牌 —— 语义变量 × 双主题
+   组件只引用语义变量，明暗主题只换值（见 design/redesign.html）
+   ============================================================ */
+
+:root {
+  --font-serif: 'Songti SC', 'Noto Serif SC', 'STSong', serif;
+  --font-sans: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Menlo', monospace;
+
+  /* 字阶 */
+  --text-xs: 12px; /* 元信息、kbd、角标 */
+  --text-sm: 13px; /* 次级正文、摘要 */
+  --text-md: 14px; /* 默认正文 */
+  --text-lg: 15px; /* 节点问题 */
+  --text-xl: 20px; /* 面板标题 */
+  --text-2xl: 28px; /* 品牌 */
+
+  /* 间距（4px 基准） */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+
+  /* 圆角 */
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+  --r-full: 999px;
+
+  --ease: cubic-bezier(0.22, 0.8, 0.32, 1);
+}
+
+/* 亮色「纸」 */
+:root,
+:root[data-theme='light'] {
+  --bg: #f6f2ea;
+  --bg-deep: #eee8db;
+  --surface: #fffdf8;
+  --surface-2: #f9f4e9;
+  --ink: #1e1b16;
+  --ink-2: #565045;
+  --ink-3: #8c8477;
+  --line: #e4daca;
+  --line-strong: #d2c5ae;
+  --edge: #c4b69e;
+  --accent: #b4442c;
+  --accent-deep: #96341f;
+  --accent-soft: rgba(180, 68, 44, 0.1);
+  --accent-ink: #7c2e1b;
+  --on-accent: #fff6ee;
+  --danger: #b3261e;
+  --danger-soft: rgba(179, 38, 30, 0.08);
+  --ok: #4c7a3f;
+  --ring: rgba(180, 68, 44, 0.35);
+  --shadow-1: 0 1px 2px rgba(30, 27, 22, 0.05), 0 6px 20px rgba(30, 27, 22, 0.06);
+  --shadow-2: 0 12px 40px rgba(30, 27, 22, 0.16);
+  --mask: rgba(30, 27, 22, 0.28);
+  color-scheme: light;
+}
+
+/* 暗色「墨」 */
+:root[data-theme='dark'] {
+  --bg: #16140f;
+  --bg-deep: #100e0b;
+  --surface: #211e18;
+  --surface-2: #292520;
+  --ink: #ede7db;
+  --ink-2: #b3aa9b;
+  --ink-3: #7e776b;
+  --line: #353026;
+  --line-strong: #463f33;
+  --edge: #4a4436;
+  --accent: #de6643;
+  --accent-deep: #c9502f;
+  --accent-soft: rgba(222, 102, 67, 0.16);
+  --accent-ink: #f09b7f;
+  --on-accent: #fff6ee;
+  --danger: #e0655c;
+  --danger-soft: rgba(224, 101, 92, 0.12);
+  --ok: #8baf7b;
+  --ring: rgba(222, 102, 67, 0.45);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.28);
+  --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --mask: rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
