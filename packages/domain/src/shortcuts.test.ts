@@ -4,9 +4,9 @@ import { SHORTCUTS, shortcutForKey, shortcutHints } from './shortcuts.js';
 describe('shortcuts', () => {
   it('uses mind-map standard bindings matched on event.key', () => {
     expect(SHORTCUTS.map((shortcut) => [shortcut.id, shortcut.key])).toEqual([
-      ['indent', 'Tab'],
+      ['child', 'Tab'],
       ['sibling', 'Enter'],
-      ['toggle', ' '],
+      ['edit', ' '],
       ['collapse', '.'],
       ['up', 'ArrowUp'],
       ['down', 'ArrowDown'],
@@ -15,9 +15,10 @@ describe('shortcuts', () => {
       ['deselect', 'Escape'],
       ['help', '?'],
     ]);
-    expect(shortcutForKey('Tab')?.id).toBe('indent');
+    expect(shortcutForKey('Tab')?.id).toBe('child');
     expect(shortcutForKey('Enter')?.id).toBe('sibling');
-    expect(shortcutForKey(' ')?.id).toBe('toggle');
+    expect(shortcutForKey(' ')?.id).toBe('edit');
+    expect(shortcutForKey('F2')?.id).toBe('edit');
     expect(shortcutForKey('.')?.id).toBe('collapse');
     expect(shortcutForKey('ArrowLeft')?.id).toBe('left');
     expect(shortcutForKey('Escape')?.id).toBe('deselect');
@@ -26,7 +27,9 @@ describe('shortcuts', () => {
   });
 
   it('renders hints for the visible bindings', () => {
-    expect(shortcutHints()).toContain('Tab 收到上一同级下');
+    expect(shortcutHints()).toContain('Tab 添加子问题');
+    expect(shortcutHints()).toContain('Space / F2 编辑问题');
     expect(shortcutHints()).toContain('? 快捷键帮助');
+    expect(shortcutHints().some((hint) => hint.includes('缩进') || hint.includes('同级下'))).toBe(false);
   });
 });

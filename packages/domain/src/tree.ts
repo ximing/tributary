@@ -89,7 +89,7 @@ export interface StructureMove {
   index: number;
 }
 
-/** Tab：收到上一个同级下面，作为它的最后一个子节点。没有上一个同级时返回 null。 */
+/** 收到上一个同级下面，作为它的最后一个子节点。没有上一个同级时返回 null。快捷键是 ⌥→。 */
 export function indentTarget(nodes: readonly Linked[], id: string): StructureMove | null {
   const node = nodes.find((item) => item.id === id);
   if (!node) return null;
@@ -102,7 +102,7 @@ export function indentTarget(nodes: readonly Linked[], id: string): StructureMov
   return { parentId: previous.id, index: childCount };
 }
 
-/** Shift+Tab：升成父节点的下一个兄弟。已经是根时返回 null。index 按移走之后计算。 */
+/** 升成父节点的下一个兄弟。已经是根时返回 null。index 按移走之后计算。快捷键是 ⌥←。 */
 export function outdentTarget(nodes: readonly Linked[], id: string): StructureMove | null {
   const node = nodes.find((item) => item.id === id);
   if (!node?.parentId) return null;
