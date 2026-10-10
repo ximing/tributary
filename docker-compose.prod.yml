@@ -1,0 +1,76 @@
+# Production: GHCR server image (API + worker), external Postgres / Meili / S3.
+#
+# On the app host, /root/apps/tributary/.env (mode 600):
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Same image, different commands. Health is GET /api/health.
+# nginx (39.96.159.212) proxies https://fenzhi.aimo.plus to host port 13008.
+
+name: tributary
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+x-app: &app
+  env_file: .env
+  environment:
+    NODE_ENV: production
+  restart: unless-stopped
+  logging: *logging
+  pull_policy: always
+
+services:
+  migrate:
+    <<: *app
+    image: ghcr.io/ximing/tributary-server:${TRIBUTARY_IMAGE_TAG:-stable}
+    container_name: tributary-migrate
+    command: ['pnpm', 'exec', 'tsx', 'src/migrate.ts']
+    restart: 'no'
+
+  server:
+    <<: *app
+    image: ghcr.io/ximing/tributary-server:${TRIBUTARY_IMAGE_TAG:-stable}
+    container_name: tributary-server
+    ports:
+      - '13008:8788'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: '8788'
+      HOST: '0.0.0.0'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          'fetch("http://127.0.0.1:8788/api/health").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))',
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  worker:
+    <<: *app
+    stop_grace_period: 5m
+    image: ghcr.io/ximing/tributary-server:${TRIBUTARY_IMAGE_TAG:-stable}
+    container_name: tributary-worker
+    command: ['pnpm', 'exec', 'tsx', 'src/worker.ts']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      HTTP_PROXY: ''
+      HTTPS_PROXY: ''
+      ALL_PROXY: ''
+      http_proxy: ''
+      https_proxy: ''
+      all_proxy: ''

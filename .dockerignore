@@ -1,0 +1,13 @@
+.git
+.codegraph
+node_modules
+**/node_modules
+dist
+**/dist
+coverage
+design
+*.log
+.env
+.env.*
+!.env.example
+!.env.production.example
