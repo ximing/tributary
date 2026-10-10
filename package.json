@@ -11,8 +11,10 @@
   "scripts": {
     "dev": "pnpm --filter @tributary/server dev",
     "dev:web": "pnpm --filter @tributary/web dev",
+    "dev:worker": "pnpm --filter @tributary/server dev:worker",
     "build": "pnpm -r build",
     "start": "pnpm --filter @tributary/server start",
+    "start:worker": "pnpm --filter @tributary/server start:worker",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "test": "pnpm --filter @tributary/domain test && pnpm --filter @tributary/server test",
