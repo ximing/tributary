@@ -58,6 +58,22 @@ export const nodes = pgTable('nodes', {
   model: text('model'),
   collapsed: boolean('collapsed').notNull().default(false),
   position: integer('position').notNull().default(0),
+  note: text('note'),
+  sticker: text('sticker'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const links = pgTable('links', {
+  id: uuid('id').primaryKey(),
+  conversationId: uuid('conversation_id')
+    .notNull()
+    .references(() => conversations.id, { onDelete: 'cascade' }),
+  sourceId: uuid('source_id')
+    .notNull()
+    .references(() => nodes.id, { onDelete: 'cascade' }),
+  targetId: uuid('target_id')
+    .notNull()
+    .references(() => nodes.id, { onDelete: 'cascade' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

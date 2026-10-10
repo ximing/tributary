@@ -20,11 +20,12 @@ export async function ensureSearchIndex(): Promise<void> {
   await client.ensureIndex();
 }
 
-export async function indexNode(doc: Omit<MeiliDocument, 'text'>): Promise<void> {
+export async function indexNode(doc: Omit<MeiliDocument, 'text'> & { note?: string | null }): Promise<void> {
   if (!config.meiliApiKey) return;
+  const { note, ...rest } = doc;
   await client.upsert({
-    ...doc,
-    text: `${doc.question}\n${doc.reply ?? ''}`,
+    ...rest,
+    text: `${doc.question}\n${doc.reply ?? ''}\n${note ?? ''}`,
   });
 }
 

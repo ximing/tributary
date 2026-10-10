@@ -87,11 +87,15 @@ export async function processAnswer(job: JobRow): Promise<void> {
   timeout.unref?.();
   const heartbeat = setInterval(() => {
     void heartbeatJob(job.id);
+  }, HEARTBEAT_MS);
+  heartbeat.unref?.();
+  // 停止按钮把任务标成 failed。这里尽快看到，不等 15 秒的心跳。
+  const watch = setInterval(() => {
     void isJobRunning(job.id).then((running) => {
       if (!running) controller.abort();
     });
-  }, HEARTBEAT_MS);
-  heartbeat.unref?.();
+  }, 400);
+  watch.unref?.();
 
   try {
     const lineage = await listConversationNodes(nodeId);
@@ -133,5 +137,6 @@ export async function processAnswer(job: JobRow): Promise<void> {
   } finally {
     clearTimeout(timeout);
     clearInterval(heartbeat);
+    clearInterval(watch);
   }
 }

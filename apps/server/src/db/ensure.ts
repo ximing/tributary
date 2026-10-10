@@ -45,7 +45,18 @@ CREATE TABLE IF NOT EXISTS nodes (
   model text,
   collapsed boolean NOT NULL DEFAULT false,
   position integer NOT NULL DEFAULT 0,
+  note text,
+  sticker text,
   created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS links (
+  id uuid PRIMARY KEY,
+  conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  source_id uuid NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  target_id uuid NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (source_id <> target_id),
+  UNIQUE (source_id, target_id)
 );
 CREATE TABLE IF NOT EXISTS jobs (
   id uuid PRIMARY KEY,
@@ -113,6 +124,17 @@ DO $$ BEGIN
     FOREIGN KEY (provider_id) REFERENCES model_configs(id) ON DELETE SET NULL;
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS note text;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS sticker text;
+CREATE TABLE IF NOT EXISTS links (
+  id uuid PRIMARY KEY,
+  conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  source_id uuid NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  target_id uuid NOT NULL REFERENCES nodes(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (source_id <> target_id),
+  UNIQUE (source_id, target_id)
+);
 `;
 
 export async function ensureSchema(): Promise<void> {

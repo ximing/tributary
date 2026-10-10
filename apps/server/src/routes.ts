@@ -1,6 +1,6 @@
 import { agentSettingsBody, readAgentSettings, saveAgentSettings } from './agent/settings.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { isModelProvider, type ModelProvider } from '@tributary/domain';
+import { isModelProvider, STICKERS, type ModelProvider, type StickerId } from '@tributary/domain';
 import { z } from 'zod';
 import {
   AuthError,
@@ -17,6 +17,7 @@ import {
 import { clearSessionCookie, readSessionToken, sessionCookie } from './auth/cookies.js';
 import {
   completeQuestionNode,
+  copyQuestionSubtree,
   createConversation,
   createQuestionNode,
   deleteConversation,
@@ -24,9 +25,20 @@ import {
   getNode,
   listConversations,
   loadConversation,
+  cancelQuestionNode,
+  createNodeLink,
+  deleteNodeLink,
+  insertOutlineNodes,
   markPending,
+  moveQuestionNode,
+  regenerateQuestionNode,
   nodeOwnedBy,
+  renameQuestion,
+  restoreQuestionSubtree,
   setCollapsed,
+  setCollapsedMany,
+  setNodeNote,
+  setNodeSticker,
   type NodeRecord,
 } from './conversations/service.js';
 import { enqueueAnswer } from './jobs/enqueue.js';
@@ -52,6 +64,61 @@ const createNodeBody = z.object({
   model: z.string().nullable().optional(),
 });
 const collapseBody = z.object({ collapsed: z.boolean() });
+const noteBody = z.object({ note: z.string().max(8000).nullable() });
+const stickerBody = z.object({
+  sticker: z.enum(STICKERS.map((item) => item.id) as [StickerId, ...StickerId[]]).nullable(),
+});
+const linkBody = z.object({
+  sourceId: z.string().uuid(),
+  targetId: z.string().uuid(),
+});
+const cancelBody = z.object({ reply: z.string().max(200_000).optional() });
+const renameBody = z.object({ question: z.string().trim().min(1).max(20000) });
+const moveBody = z.object({
+  parentId: z.string().uuid().nullable(),
+  index: z.number().int().min(0).max(10000),
+});
+const regenerateBody = z
+  .object({
+    providerId: z.string().uuid().optional(),
+    model: z.string().min(1).max(128).optional(),
+  })
+  .refine((data) => (data.providerId === undefined) === (data.model === undefined));
+const outlineBody = z.object({
+  parentId: z.string().uuid().nullable(),
+  items: z
+    .array(
+      z.object({
+        question: z.string().trim().min(1).max(20000),
+        depth: z.number().int().min(0).max(32),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+const collapseManyBody = z.object({
+  changes: z.array(z.object({ id: z.string().uuid(), collapsed: z.boolean() })).max(2000),
+});
+const restoreBody = z.object({
+  nodes: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        parentId: z.string().uuid().nullable(),
+        question: z.string().trim().min(1).max(20000),
+        reply: z.string().nullable(),
+        status: z.enum(['pending', 'done', 'error']),
+        providerId: z.string().uuid().nullable(),
+        model: z.string().max(128).nullable(),
+        collapsed: z.boolean(),
+        position: z.number().int().min(0).max(10000),
+        note: z.string().max(8000).nullable().optional(),
+        sticker: z.enum(STICKERS.map((item) => item.id) as [StickerId, ...StickerId[]]).nullable().optional(),
+      }),
+    )
+    .min(1)
+    .max(500),
+});
 const modelConfigBody = z.object({
   provider: z.string().min(1),
   apiKey: z.string().min(1).max(512),
@@ -340,16 +407,37 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(204).send();
   });
 
-  /** 重新生成：重置为 pending 并入队回答任务，客户端经 SSE 轮询拿到结果 */
+  /** 重新生成：重置为 pending 并入队回答任务，客户端经 SSE 轮询拿到结果。可以改用另一个模型。 */
   app.post('/api/nodes/:id/regenerate', async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;
     const { id } = request.params as { id: string };
-    if (!(await nodeOwnedBy(id, user.id))) return reply.code(404).send({ error: '节点不存在' });
-    const node = await markPending(id);
-    if (!node) return reply.code(404).send({ error: '节点不存在' });
-    if (node.providerId && node.model) await enqueueAnswer(user.id, id);
-    return node;
+    const parsed = regenerateBody.safeParse(request.body ?? {});
+    if (!parsed.success) return badRequest(reply, '参数无效');
+    const override =
+      parsed.data.providerId && parsed.data.model ? { providerId: parsed.data.providerId, model: parsed.data.model } : undefined;
+    try {
+      const node = await regenerateQuestionNode(id, user.id, override);
+      if (!node) return reply.code(404).send({ error: '节点不存在' });
+      if (node.providerId && node.model) await enqueueAnswer(user.id, id);
+      return node;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '重新生成失败';
+      const status = message === '模型配置不存在' ? 404 : 400;
+      return reply.code(status).send({ error: message });
+    }
+  });
+
+  /** 粘贴大纲：只建问题，不调用模型。 */
+  app.post('/api/conversations/:id/outline', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const parsed = outlineBody.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, '参数无效');
+    const inserted = await insertOutlineNodes(id, user.id, parsed.data.parentId, parsed.data.items);
+    if (!inserted) return badRequest(reply, '不能放入这些问题');
+    return reply.code(201).send(inserted);
   });
 
   /** 删除节点及其整棵子树 */
@@ -366,11 +454,107 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const user = await requireUser(request, reply);
     if (!user) return;
     const { id } = request.params as { id: string };
-    const parsed = collapseBody.safeParse(request.body);
+    const body = request.body;
+    if (body && typeof body === 'object' && 'question' in body) {
+      const parsed = renameBody.safeParse(body);
+      if (!parsed.success) return badRequest(reply, '参数无效');
+      const node = await renameQuestion(id, user.id, parsed.data.question);
+      if (!node) return reply.code(404).send({ error: '节点不存在' });
+      return node;
+    }
+    if (body && typeof body === 'object' && 'note' in body) {
+      const parsed = noteBody.safeParse(body);
+      if (!parsed.success) return badRequest(reply, '参数无效');
+      const node = await setNodeNote(id, user.id, parsed.data.note);
+      if (!node) return reply.code(404).send({ error: '节点不存在' });
+      return node;
+    }
+    if (body && typeof body === 'object' && 'sticker' in body) {
+      const parsed = stickerBody.safeParse(body);
+      if (!parsed.success) return badRequest(reply, '参数无效');
+      const node = await setNodeSticker(id, user.id, parsed.data.sticker);
+      if (!node) return reply.code(404).send({ error: '节点不存在' });
+      return node;
+    }
+    const parsed = collapseBody.safeParse(body);
     if (!parsed.success) return badRequest(reply, '参数无效');
     const node = await setCollapsed(id, user.id, parsed.data.collapsed);
     if (!node) return reply.code(404).send({ error: '节点不存在' });
     return node;
+  });
+
+  /** 停掉正在生成的回答。已经写出的留下。 */
+  app.post('/api/nodes/:id/cancel', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const parsed = cancelBody.safeParse(request.body ?? {});
+    if (!parsed.success) return badRequest(reply, '参数无效');
+    const node = await cancelQuestionNode(id, user.id, parsed.data.reply);
+    if (!node) return reply.code(404).send({ error: '节点不存在' });
+    return node;
+  });
+
+  app.post('/api/conversations/:id/links', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const parsed = linkBody.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, '参数无效');
+    const created = await createNodeLink(id, user.id, parsed.data.sourceId, parsed.data.targetId);
+    if (!created) return badRequest(reply, '不能这样连');
+    return reply.code(created.created ? 201 : 200).send(created);
+  });
+
+  app.delete('/api/links/:id', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const removed = await deleteNodeLink(id, user.id);
+    if (!removed) return reply.code(404).send({ error: '关系线不存在' });
+    return reply.code(204).send();
+  });
+
+  app.post('/api/nodes/:id/move', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const parsed = moveBody.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, '参数无效');
+    const moved = await moveQuestionNode(id, user.id, parsed.data.parentId, parsed.data.index);
+    if (!moved) return badRequest(reply, '不能这样移动');
+    return { nodes: moved };
+  });
+
+  app.post('/api/nodes/:id/copy', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const copied = await copyQuestionSubtree(id, user.id);
+    if (!copied) return reply.code(404).send({ error: '节点不存在' });
+    return copied;
+  });
+
+  app.post('/api/conversations/:id/collapsed', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const parsed = collapseManyBody.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, '参数无效');
+    const updated = await setCollapsedMany(id, user.id, parsed.data.changes);
+    if (!updated) return reply.code(404).send({ error: '对话不存在' });
+    return { nodes: updated };
+  });
+
+  app.post('/api/conversations/:id/restore', async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (!user) return;
+    const { id } = request.params as { id: string };
+    const parsed = restoreBody.safeParse(request.body);
+    if (!parsed.success) return badRequest(reply, '参数无效');
+    const restored = await restoreQuestionSubtree(id, user.id, parsed.data.nodes);
+    if (!restored) return badRequest(reply, '不能恢复这一枝');
+    return { nodes: restored };
   });
 
   app.get('/api/model-configs', async (request, reply) => {
