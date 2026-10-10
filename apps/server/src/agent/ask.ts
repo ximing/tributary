@@ -1,6 +1,7 @@
 import { Agent, type AgentMessage } from '@earendil-works/pi-agent-core';
 import { contentText, createModels, createProvider, type Model } from '@earendil-works/pi-ai';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
+import { MOONSHOTAI_CN_MODELS } from '@earendil-works/pi-ai/providers/moonshotai-cn.models';
 import type { ModelProvider } from '@tributary/domain';
 import type { ModelMessage } from './context.js';
 
@@ -28,7 +29,9 @@ export class AskError extends Error {
 
 export { DEFAULT_SYSTEM_PROMPT } from './prompt.js';
 
-function openaiModel(modelId: string, baseUrl: string): Model<'openai-completions'> {
+type CompletionModel = Model<'openai-completions'>;
+
+function openaiModel(modelId: string, baseUrl: string): CompletionModel {
   return {
     id: modelId,
     name: modelId,
@@ -45,6 +48,41 @@ function openaiModel(modelId: string, baseUrl: string): Model<'openai-completion
       supportsDeveloperRole: false,
       supportsReasoningEffort: false,
       supportsUsageInStreaming: true,
+    },
+  };
+}
+
+/**
+ * Kimi 走 Moonshot 中国区的 OpenAI Chat Completions。
+ * 注册进运行时的 provider id 仍是 openai，这样现有的密钥注入不用分叉；
+ * 已知模型则套用 pi-ai 目录里的 moonshotai-cn 兼容参数（max_tokens、思考字段）。
+ */
+export function completionModel(provider: ModelProvider, modelId: string, baseUrl: string): CompletionModel {
+  if (provider !== 'kimi') return openaiModel(modelId, baseUrl);
+  const known = (MOONSHOTAI_CN_MODELS as Record<string, CompletionModel | undefined>)[modelId];
+  if (known?.api === 'openai-completions') {
+    return {
+      ...known,
+      provider: 'openai',
+      baseUrl,
+      compat: {
+        ...known.compat,
+        supportsStore: false,
+        supportsDeveloperRole: false,
+        supportsUsageInStreaming: true,
+      },
+    };
+  }
+  return {
+    ...openaiModel(modelId, baseUrl),
+    contextWindow: 262_144,
+    compat: {
+      supportsStore: false,
+      supportsDeveloperRole: false,
+      supportsReasoningEffort: false,
+      supportsUsageInStreaming: true,
+      maxTokensField: 'max_tokens',
+      supportsStrictMode: false,
     },
   };
 }
@@ -83,8 +121,9 @@ export interface StreamAskHandlers {
   signal?: AbortSignal;
 }
 
-export async function streamAsk(input: AskInput, handlers: StreamAskHandlers = {}): Promise<AskResult> {
-  const model = openaiModel(input.modelId, input.baseUrl);
+export async function streamAsk(input: AskInput & { provider?: ModelProvider }, handlers: StreamAskHandlers = {}): Promise<AskResult> {
+  if (input.provider === 'claude') return streamClaude(input, handlers);
+  const model = completionModel(input.provider ?? 'openai', input.modelId, input.baseUrl);
   const provider = createProvider({
     id: 'openai',
     name: 'openai',
@@ -156,7 +195,6 @@ export async function ask(input: AskInput): Promise<AskResult> {
 }
 
 export async function streamModel(input: AskInput & { provider: ModelProvider }, handlers: StreamAskHandlers = {}): Promise<AskResult> {
-  if (input.provider === 'claude') return streamClaude(input, handlers);
   return streamAsk(input, handlers);
 }
 
