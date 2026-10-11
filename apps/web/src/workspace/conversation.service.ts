@@ -10,7 +10,7 @@ import { ModelCatalogService } from './model-catalog.service.js';
 export class ConversationService extends Service {
   conversations: Conversation[] = [];
   activeId: string | null = null;
-  /** 初次恢复结束后才把选中写回地址栏，避免刷新时把 ?map= 清掉。 */
+  /** 初次恢复结束后才改地址，避免刷新时把 /mind?id= 清掉。 */
   restored = false;
   /** 后发起的打开作废先发起的，避免恢复和点击互相覆盖。 */
   openEpoch = 0;
@@ -36,7 +36,7 @@ export class ConversationService extends Service {
     }
   }
 
-  /** 地址栏里的脑图优先，否则用上次打开的。已经选中则不动。 */
+  /** 路径里的脑图优先，否则用上次打开的。已经选中则不动。 */
   async restore(preferredId?: string | null): Promise<void> {
     if (this.activeId) return;
     const mark = this.openEpoch;
@@ -84,6 +84,13 @@ export class ConversationService extends Service {
     } catch (error) {
       this.map.notice = errorMessage(error, '创建失败');
     }
+  }
+
+  /** 地址回到大厅时收起当前脑图，本机记录留着，下次打开 / 还能回去。 */
+  leave(): void {
+    if (!this.activeId) return;
+    this.activeId = null;
+    this.map.clearCanvas();
   }
 
   async remove(id: string): Promise<void> {

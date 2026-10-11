@@ -6,6 +6,7 @@ import { setUnauthorizedHandler } from './api/client.js';
 import { AuthPage } from './AuthPage.js';
 import { registerAppServices } from './services/register-app.js';
 import { SessionService } from './services/session.service.js';
+import { readMapId } from './lib/mapMemory.js';
 import { Workspace } from './workspace/Workspace.js';
 import './styles/index.css';
 
@@ -42,12 +43,19 @@ const Gate = observer(function Gate() {
     <Routes>
       <Route element={<Workspace />}>
         <Route index element={null} />
-        <Route path="settings" element={<Navigate to="/?settings=models" replace />} />
-        <Route path="usage" element={<Navigate to="/?settings=usage" replace />} />
+        <Route path="mind" element={null} />
+        <Route path="settings" element={<LegacySettings section="models" />} />
+        <Route path="usage" element={<LegacySettings section="usage" />} />
       </Route>
     </Routes>
   );
 });
+
+function LegacySettings({ section }: { section: 'models' | 'usage' }) {
+  const stored = readMapId();
+  const to = stored ? `/mind?id=${encodeURIComponent(stored)}&settings=${section}` : `/?settings=${section}`;
+  return <Navigate to={to} replace />;
+}
 
 const root = document.getElementById('root');
 if (!root) throw new Error('缺少根节点');
