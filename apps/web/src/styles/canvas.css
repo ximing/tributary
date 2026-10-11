@@ -496,7 +496,7 @@ span.outline-fold {
   align-items: center;
   justify-content: center;
   border-radius: var(--r-m);
-  background: var(--accent);
+  background: var(--ai-gradient);
   color: var(--on-accent);
   font-family: var(--font-serif);
   font-size: 22px;

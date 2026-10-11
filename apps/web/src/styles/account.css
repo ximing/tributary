@@ -364,7 +364,7 @@
   right: 40%;
   height: 8px;
   border-radius: 4px;
-  background: var(--thumb-ink, #b4442c);
+  background: var(--thumb-ink, #6d5ae0);
   opacity: 0.85;
 }
 
@@ -375,24 +375,24 @@
   top: 24px;
   right: 20%;
   bottom: 8px;
-  border: 1px solid var(--thumb-ink, #b4442c);
+  border: 1px solid var(--thumb-ink, #6d5ae0);
   border-radius: 6px;
   opacity: 0.4;
 }
 
 .thumb-light {
-  --thumb-ink: #b4442c;
-  background: #f6f2ea;
+  --thumb-ink: #6d5ae0;
+  background: #f7f7f9;
 }
 
 .thumb-dark {
-  --thumb-ink: #de6643;
-  background: #16140f;
+  --thumb-ink: #9b8afb;
+  background: #101014;
 }
 
 .thumb-system {
-  --thumb-ink: #c9502f;
-  background: linear-gradient(110deg, #f6f2ea 50%, #16140f 50%);
+  --thumb-ink: #8574f5;
+  background: linear-gradient(110deg, #f7f7f9 50%, #101014 50%);
 }
 
 .theme-card-name {

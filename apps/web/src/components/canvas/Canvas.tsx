@@ -95,10 +95,10 @@ export const Canvas = observer(function Canvas() {
   );
 
   // SVG 属性吃不到 var()，主题切换时重读计算值
-  const dotColor = useMemo(() => cssVar('--edge') || '#c4b69e', [theme.theme]);
+  const dotColor = useMemo(() => cssVar('--edge') || '#c9c9d8', [theme.theme]);
   const maskColor = useMemo(() => cssVar('--mask') || 'rgba(0,0,0,0.2)', [theme.theme]);
-  const minimapBase = useMemo(() => cssVar('--line-strong') || '#d2c5ae', [theme.theme]);
-  const minimapAccent = useMemo(() => cssVar('--accent') || '#b4442c', [theme.theme]);
+  const minimapBase = useMemo(() => cssVar('--line-strong') || '#d4d4e0', [theme.theme]);
+  const minimapAccent = useMemo(() => cssVar('--accent') || '#6d5ae0', [theme.theme]);
 
   /** 分支着色：一级分支（根的直接子节点）定色，整棵子树继承 */
   const branchColor = useMemo(() => {

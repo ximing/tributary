@@ -25,10 +25,10 @@ export const LAYOUT_OPTIONS: { value: LayoutDirection; label: string; hint: stri
   { value: 'tb', label: '上下布局', hint: '树形图，从上向下生长' },
 ];
 
-/** 分支着色色板：每个一级分支一色，子分支继承（XMind 彩虹分支） */
+/** 分支着色色板：每个一级分支一色，子分支继承（XMind 彩虹分支）。首色对齐主题 accent */
 export const BRANCH_PALETTES: Record<'light' | 'dark', string[]> = {
-  light: ['#b4442c', '#3e6b8a', '#6e7f3c', '#8a5a8c', '#b07a2a', '#4f7a6a'],
-  dark: ['#de6643', '#6fa3c6', '#a3b86b', '#b184b5', '#d9a45b', '#7bb09b'],
+  light: ['#6d5ae0', '#0e8f8a', '#3b74d6', '#c24d7c', '#b07a2a', '#4c8a3f'],
+  dark: ['#9b8afb', '#3fc6bd', '#6f9bf0', '#e07ba4', '#d9a45b', '#8ab86b'],
 };
 
 const STORAGE_KEY = 'tributary-canvas';
