@@ -25,11 +25,29 @@ function WorkspaceView() {
   const [params, setParams] = useSearchParams();
   const settings = params.get('settings');
   const settingsSection = SETTINGS_SECTIONS.find((section) => section === settings) ?? null;
+  const activeId = conversations.activeId;
+  const restored = conversations.restored;
+  const mapParam = params.get('map');
 
   useEffect(() => {
-    void conversations.init();
+    const preferred = new URLSearchParams(window.location.search).get('map');
+    void conversations.init(preferred);
     return streams.watch();
   }, [conversations, streams]);
+
+  useEffect(() => {
+    if (!restored) return;
+    if ((mapParam ?? null) === (activeId ?? null)) return;
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (activeId) next.set('map', activeId);
+        else next.delete('map');
+        return next;
+      },
+      { replace: true },
+    );
+  }, [restored, activeId, mapParam, setParams]);
 
   useEffect(() => {
     if (!settingsSection) return;
