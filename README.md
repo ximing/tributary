@@ -1,38 +1,32 @@
 # 支流
 
-非线性脑图对话。左侧是对话列表，右侧是可展开、收起的脑图画板。
+支流是给会分叉的问题用的。一次对话不必排成一条直线。
 
-## 开发
+## 为什么要一张会分叉的图
 
-```bash
-pnpm install
-cp .env.example .env
-pnpm --filter @tributary/server exec tsx scripts/bootstrap-db.ts
-pnpm dev
-pnpm dev:worker
-pnpm dev:web
-```
+线性的聊天把每一次追问都接在同一条记录后面。一个问题常常同时长出几条路：换个角度、追一个细节、旁边再比较另一种做法。这些岔路挤在一条时间线里，回头很难看出它是从哪一句长出来的。
 
-API 在 `http://127.0.0.1:8788`。页面开发服务器在 `http://127.0.0.1:5173`，并把 `/api` 代理到 API。`pnpm dev:worker` 从 `jobs` 表领取回答任务；只开 API 时，新问题会停在待回答。
+支流把对话画成脑图。每一条追问都留在自己的枝上，原来的问题还在它该在的地方。
 
-生产形态由服务端同时提供 API 和构建后的页面，回答仍由独立 worker 执行：
+## 支流是什么
 
-```bash
-pnpm build
-pnpm start
-pnpm start:worker
-```
+支流是非线性脑图对话。
 
-每个环境一份 env 文件，里面都写 `DATABASE_URL` 和 `MEILI_INDEX_UID`。开发读 `.env`，测试只读 `.env.test`，`NODE_ENV=production` 时先读 `.env.production`。搜索只走 Meilisearch 关键词检索（中文 `cmn`）。
+打开之后，左侧是对话列表，右侧是一张可以展开、也可以收起的脑图画板。每张卡片是一个问题，卡片之间的线表示它从哪一句继续问下去。
 
-## 部署
+## 怎么用
 
-推到 `main` 后，GitHub Actions 把镜像推到 `ghcr.io/ximing/tributary-server`（标签 `stable`）。应用机 `/root/apps/tributary` 用 `docker-compose.prod.yml` 拉起 migrate、server、worker。入口 `https://fenzhi.aimo.plus` 反代到应用机 `13008`。变量样例见 `.env.production.example`，真实值只放应用机的 `.env`。
+1. 注册一个账号，或登录已有账号。
+2. 新建对话，写下第一个问题。
+3. 选中一张卡片，添加子问题，顺着这一句继续问。也可以添加同级问题，在旁边另开一条。
+4. 不需要看整棵树的时候，把子树或回答收起；想继续看，再展开。
 
-## 检查
+![登录后的画板，父问题下面有一条子分支](docs/images/branching-map.png)
 
-```bash
-pnpm typecheck
-pnpm lint
-pnpm test
-```
+## 接着看
+
+使用过程就这些。本地安装、检查和部署写在旁边：
+
+- [本地开发](docs/开发.md)
+- [检查](docs/检查.md)
+- [部署](docs/部署.md)

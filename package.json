@@ -18,6 +18,7 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "test": "pnpm --filter @tributary/domain test && pnpm --filter @tributary/server test",
+    "check:readme": "node scripts/check-readme.mjs",
     "test:pg": "pnpm --filter @tributary/server test:pg",
     "test:agent": "pnpm --filter @tributary/server test:agent",
     "test:meili": "pnpm --filter @tributary/server test:meili"
