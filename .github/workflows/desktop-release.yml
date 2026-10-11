@@ -1,0 +1,58 @@
+name: desktop-release
+
+# 打 tag 触发：git tag desktop-v0.1.0 && git push origin desktop-v0.1.0
+# 也可在 Actions 页面手动触发（workflow_dispatch）
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: universal-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: apps/desktop
+          tagName: desktop-v__VERSION__
+          releaseName: '支流桌面版 v__VERSION__'
+          releaseBody: '支流桌面端：macOS（universal dmg）/ Windows（nsis exe）/ Linux（AppImage、deb）。应用内直接加载 https://fenzhi.aimo.plus。'
+          releaseDraft: true
+          prerelease: false
+          args: --target ${{ matrix.target }}
