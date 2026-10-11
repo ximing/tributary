@@ -18,7 +18,7 @@ import { ThinkingBlock } from './ThinkingBlock.js';
 type QuestionFlowNode = Node<Record<string, never>, 'question'>;
 
 /**
- * 节点卡片：紧凑态只显示问题与回复摘要；展开/流式时显示完整 markdown。
+ * 节点卡片：紧凑态显示问题，回复先渲染 markdown 再截断；展开/流式时显示全文。
  * 流式文本走 store 精确订阅，只有这张卡片随 token 重渲染。
  */
 export const QuestionNodeView = observer(function QuestionNodeView({ id, selected }: NodeProps<QuestionFlowNode>) {
@@ -181,14 +181,15 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
       ) : null}
 
       {showExcerpt ? (
-        <p
-          className="node-excerpt"
+        <div
+          ref={replyRef}
+          className="node-excerpt nodrag"
           onMouseUp={(event) => {
             captureAsk(event.currentTarget, setAsk);
           }}
         >
-          <MarkedText text={replyText} query={findQuery} />
-        </p>
+          <NodeMarkdown text={replyText} />
+        </div>
       ) : null}
 
       <button

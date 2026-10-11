@@ -147,7 +147,7 @@
   white-space: nowrap;
 }
 
-/* 摘要：三行截断。回答可以选择，用来划词追问。卡片其余部分仍由画布禁止选择。 */
+/* 摘要：先按 markdown 排好，再截成三行。回答可以选择，用来划词追问。卡片其余部分仍由画布禁止选择。 */
 .react-flow__node .node-excerpt,
 .react-flow__node .node-reply,
 .react-flow__node .node-note {
@@ -166,6 +166,30 @@
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* 摘要里把块拉成一行流，三行截断才能切在字上，而不是整段留下。 */
+.node-excerpt .markdown,
+.node-excerpt .markdown * {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  white-space: pre-wrap;
+}
+
+.node-excerpt .markdown :where(p, li, blockquote, h1, h2, h3, h4, h5, h6)::after {
+  content: ' ';
+}
+
+.node-excerpt .markdown img,
+.node-excerpt .markdown br {
+  display: none;
+}
+
+.node-excerpt .markdown code {
+  padding: 0 3px;
+  white-space: pre-wrap;
 }
 
 /* 展开 / 流式全文 */
