@@ -223,11 +223,15 @@ export const Canvas = observer(function Canvas() {
           writeViewport(activeId, viewport);
         }}
         onPaneClick={() => {
-          map.setMenu(null);
           if (map.linkFrom) map.cancelLink();
+          map.select(null);
         }}
         onEdgeClick={(_event, edge) => {
-          if (!edge.id.startsWith('link:')) return;
+          if (!edge.id.startsWith('link:')) {
+            if (map.linkFrom) map.cancelLink();
+            map.select(null);
+            return;
+          }
           const linkId = edge.id.slice('link:'.length);
           map.setConfirm({
             title: '断开这条关系线？',
