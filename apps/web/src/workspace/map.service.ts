@@ -85,6 +85,7 @@ export class MapService extends Service {
   links: NodeLink[] = [];
   linkFrom: string | null = null;
   presentId: string | null = null;
+  detailId: string | null = null;
   drag: DragState | null = null;
   undoStack: HistoryEntry[] = [];
   redoStack: HistoryEntry[] = [];
@@ -133,6 +134,7 @@ export class MapService extends Service {
     this.links = links;
     this.linkFrom = null;
     this.presentId = null;
+    this.detailId = null;
     this.drag = null;
     if (!keepHistory) {
       this.undoStack = [];
@@ -154,6 +156,7 @@ export class MapService extends Service {
     this.links = [];
     this.linkFrom = null;
     this.presentId = null;
+    this.detailId = null;
     this.drag = null;
     this.undoStack = [];
     this.redoStack = [];
@@ -469,7 +472,7 @@ export class MapService extends Service {
   async stopNode(id: string): Promise<void> {
     const current = this.nodes[id];
     if (!current || current.status !== 'pending') return;
-    const seen = (this.streams.streaming[id] ?? current.reply ?? '').trim();
+    const seen = (this.streams.streaming[id]?.reply ?? current.reply ?? '').trim();
     try {
       const node = await apiCancelNode(id, seen || undefined);
       this.streams.clearNode(id);
@@ -609,6 +612,16 @@ export class MapService extends Service {
 
   closePresent(): void {
     this.presentId = null;
+  }
+
+  openDetail(id: string): void {
+    if (!this.nodes[id]) return;
+    this.detailId = id;
+    this.menu = null;
+  }
+
+  closeDetail(): void {
+    this.detailId = null;
   }
 
   stepPresent(delta: number): void {
@@ -895,6 +908,7 @@ export class MapService extends Service {
     this.links = this.links.filter((link) => !removed.has(link.sourceId) && !removed.has(link.targetId));
     this.linkFrom = this.linkFrom && removed.has(this.linkFrom) ? null : this.linkFrom;
     this.presentId = this.presentId && removed.has(this.presentId) ? null : this.presentId;
+    this.detailId = this.detailId && removed.has(this.detailId) ? null : this.detailId;
     this.menu = null;
   }
 

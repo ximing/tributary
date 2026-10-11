@@ -50,6 +50,10 @@ export function useHotkeys(actions: HotkeyActions): void {
           return;
         }
       }
+      if (map.detailId) {
+        if (event.key === 'Escape') map.closeDetail();
+        return;
+      }
       if (map.helpOpen) {
         if (event.key === 'Escape' || event.key === '?') map.setHelpOpen(false);
         return;
@@ -195,7 +199,7 @@ export function useHotkeys(actions: HotkeyActions): void {
     };
     const onPaste = (event: ClipboardEvent) => {
       if (new URLSearchParams(window.location.search).has('settings')) return;
-      if (map.confirm || map.helpOpen) return;
+      if (map.confirm || map.helpOpen || map.detailId) return;
       const target = event.target;
       if (target instanceof HTMLElement) {
         const tag = target.tagName;

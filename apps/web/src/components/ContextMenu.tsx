@@ -23,6 +23,7 @@ import {
   GitBranch,
   ImageDown,
   ListIndentDecrease,
+  Maximize2,
   ListIndentIncrease,
   MessageSquarePlus,
   Pencil,
@@ -141,6 +142,7 @@ const NodeMenu = observer(function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' 
   const chooseSticker = (id: string, sticker: Parameters<MapService['chooseSticker']>[1]) => map.chooseSticker(id, sticker);
   const startLink = (id: string) => map.startLink(id);
   const openPresent = (id?: string | null) => map.openPresent(id);
+  const openDetail = (id: string) => map.openDetail(id);
   const relevelSelected = (direction: 'indent' | 'outdent') => map.relevelSelected(direction);
   const reorderSelected = (delta: number) => map.reorderSelected(delta);
   const toggleReply = (id: string) => map.toggleReply(id);
@@ -176,6 +178,10 @@ const NodeMenu = observer(function NodeMenu({ x, y }: Pick<CanvasMenuState, 'x' 
       <button type="button" className="menu-item" role="menuitem" onClick={() => setEditing(selectedId)}>
         <Pencil size={14} aria-hidden />
         编辑问题 <kbd>Space</kbd>
+      </button>
+      <button type="button" className="menu-item" role="menuitem" onClick={() => openDetail(selectedId)}>
+        <Maximize2 size={14} aria-hidden />
+        查看详情
       </button>
       <button type="button" className="menu-item" role="menuitem" onClick={() => openDraft('child')}>
         <CornerDownRight size={14} aria-hidden />

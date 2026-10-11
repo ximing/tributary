@@ -1,10 +1,19 @@
 import type { ConversationNode } from './client.js';
 
+export interface StreamDraft {
+  reply: string;
+  thinking: string;
+}
+
 export interface StreamHandlers {
-  onSnapshot?: (text: string, phase: string) => void;
-  onDelta?: (text: string) => void;
+  onSnapshot?: (draft: StreamDraft, phase: string) => void;
+  onDelta?: (draft: StreamDraft) => void;
   onDone?: (node: ConversationNode) => void;
   onError?: (message: string) => void;
+}
+
+function asDraft(data: { text?: string; reply?: string; thinking?: string }): StreamDraft {
+  return { reply: data.reply ?? data.text ?? '', thinking: data.thinking ?? '' };
 }
 
 function parse<T>(event: MessageEvent<string>): T {
@@ -18,12 +27,12 @@ function parse<T>(event: MessageEvent<string>): T {
 export function subscribeNodeStream(nodeId: string, handlers: StreamHandlers): EventSource {
   const source = new EventSource(`/api/nodes/${encodeURIComponent(nodeId)}/stream`);
   source.addEventListener('snapshot', (event) => {
-    const data = parse<{ text: string; phase: string }>(event as MessageEvent<string>);
-    handlers.onSnapshot?.(data.text, data.phase);
+    const data = parse<{ text?: string; reply?: string; thinking?: string; phase: string }>(event as MessageEvent<string>);
+    handlers.onSnapshot?.(asDraft(data), data.phase);
   });
   source.addEventListener('delta', (event) => {
-    const data = parse<{ text: string }>(event as MessageEvent<string>);
-    handlers.onDelta?.(data.text);
+    const data = parse<{ text?: string; reply?: string; thinking?: string }>(event as MessageEvent<string>);
+    handlers.onDelta?.(asDraft(data));
   });
   source.addEventListener('done', (event) => {
     const data = parse<{ node: ConversationNode }>(event as MessageEvent<string>);

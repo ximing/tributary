@@ -1,5 +1,5 @@
 import { observer, useService } from '@rabjs/react';
-import { CornerDownRight, MoreHorizontal, Plus, RefreshCw } from 'lucide-react';
+import { CornerDownRight, Maximize2, MoreHorizontal, Plus, RefreshCw } from 'lucide-react';
 import { MapService } from '../../workspace/map.service.js';
 
 /**
@@ -32,6 +32,17 @@ export const NodeActionBar = observer(function NodeActionBar({ id }: { id: strin
       >
         <Plus size={13} aria-hidden />
         同级
+      </button>
+      <button
+        type="button"
+        title="查看卡片详情"
+        onClick={(event) => {
+          event.stopPropagation();
+          map.openDetail(id);
+        }}
+      >
+        <Maximize2 size={13} aria-hidden />
+        详情
       </button>
       <button
         type="button"

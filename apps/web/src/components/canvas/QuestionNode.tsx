@@ -3,7 +3,7 @@ import { observer, useService } from '@rabjs/react';
 import { createPortal } from 'react-dom';
 import { stickerOf } from '@tributary/domain';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
-import { ChevronDown, CircleAlert, LoaderCircle, Plus, RefreshCw, Square } from 'lucide-react';
+import { ChevronDown, CircleAlert, LoaderCircle, Maximize2, Plus, RefreshCw, Square } from 'lucide-react';
 import { useNodeSize } from '../../hooks/useNodeSize.js';
 import { markElement, splitHighlight } from '../../lib/findMark.js';
 import { CanvasPrefsService } from '../../services/canvas-prefs.service.js';
@@ -13,6 +13,7 @@ import { useBranchDrag } from './branchDrag.js';
 import { AnswerBadge } from '../AnswerBadge.js';
 import { NodeActionBar } from './NodeActionBar.js';
 import { NodeMarkdown } from './NodeMarkdown.js';
+import { ThinkingBlock } from './ThinkingBlock.js';
 
 type QuestionFlowNode = Node<Record<string, never>, 'question'>;
 
@@ -25,7 +26,8 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
   const streams = useService(StreamService);
   const prefs = useService(CanvasPrefsService);
   const node = map.nodes[id];
-  const streamingText = streams.streaming[id];
+  const live = streams.streaming[id];
+  const isStreaming = live !== undefined;
   const streamError = streams.streamErrors[id];
   const expanded = Boolean(map.expandedReplies[id]);
   const childCount = map.nodeOrder.reduce((count, nid) => (map.nodes[nid]?.parentId === id ? count + 1 : count), 0);
@@ -55,7 +57,13 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
     const host = replyRef.current;
     if (!host) return;
     markElement(host, findQuery);
-  }, [findQuery, streamingText, node?.reply, expanded]);
+  }, [findQuery, live?.reply, node?.reply, expanded]);
+
+  useEffect(() => {
+    const host = replyRef.current;
+    if (!host || !isStreaming) return;
+    host.scrollTop = host.scrollHeight;
+  }, [live?.reply, isStreaming]);
 
   if (!node) return null;
   const askPop = ask
@@ -77,10 +85,12 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
         document.body,
       )
     : null;
-  const isStreaming = streamingText !== undefined;
+  const replyText = live ? live.reply : (node.reply ?? '');
+  const thinkingText = live ? live.thinking : (node.thinking ?? '');
   const isError = node.status === 'error';
-  const showFullReply = !isError && (isStreaming || (expanded && node.reply));
-  const showExcerpt = !isError && !isStreaming && !expanded && node.reply;
+  const showFullReply = !isError && Boolean(replyText) && (isStreaming || expanded);
+  const showExcerpt = !isError && !isStreaming && !expanded && Boolean(replyText);
+  const waiting = (node.status === 'pending' || isStreaming) && !replyText && !thinkingText;
   const tb = layout === 'tb';
   const dropPlace = drag && drag.id !== id && drag.drop?.overId === id ? drag.drop.place : null;
 
@@ -129,7 +139,7 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
 
       {node.status === 'pending' || isStreaming ? (
         <div className="node-pending">
-          {node.status === 'pending' && !isStreaming ? (
+          {waiting ? (
             <p className="node-thinking stream-tag">
               <LoaderCircle className="spin" size={11} aria-hidden />
               思考中…
@@ -149,6 +159,8 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
         </div>
       ) : null}
 
+      {thinkingText ? <ThinkingBlock text={thinkingText} live={isStreaming} /> : null}
+
       {showFullReply ? (
         <div
           ref={replyRef}
@@ -163,7 +175,7 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
               回答中
             </span>
           ) : null}
-          <NodeMarkdown text={isStreaming ? streamingText : (node.reply ?? '')} />
+          <NodeMarkdown text={replyText} />
           {isStreaming ? <span className="node-cursor" /> : null}
         </div>
       ) : null}
@@ -175,9 +187,22 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
             captureAsk(event.currentTarget, setAsk);
           }}
         >
-          <MarkedText text={node.reply ?? ''} query={findQuery} />
+          <MarkedText text={replyText} query={findQuery} />
         </p>
       ) : null}
+
+      <button
+        type="button"
+        className="node-open nodrag"
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          map.openDetail(id);
+        }}
+      >
+        <Maximize2 size={11} aria-hidden />
+        详情
+      </button>
 
       {node.status === 'done' && !node.reply && !isStreaming ? (
         <button

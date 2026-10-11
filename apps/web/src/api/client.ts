@@ -19,6 +19,7 @@ export interface ConversationNode {
   parentId: string | null;
   question: string;
   reply: string | null;
+  thinking?: string | null;
   status: string;
   providerId: string | null;
   model: string | null;

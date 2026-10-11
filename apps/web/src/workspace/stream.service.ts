@@ -1,7 +1,7 @@
 import { observe, Service, unobserve } from '@rabjs/react';
 import type { Reaction } from '@rabjs/react';
 import type { ConversationNode } from '../api/client.js';
-import { subscribeNodeStream } from '../api/stream.js';
+import { subscribeNodeStream, type StreamDraft } from '../api/stream.js';
 import { MapService } from './map.service.js';
 
 /**
@@ -10,7 +10,8 @@ import { MapService } from './map.service.js';
  * 节点离开这张图，或不再 pending，对应的流会关掉。
  */
 export class StreamService extends Service {
-  streaming: Record<string, string> = {};
+  /** 正在生成的节点。值是截至目前的正文和思考，不是增量片段。 */
+  streaming: Record<string, StreamDraft> = {};
   streamErrors: Record<string, string> = {};
   private readonly sources = new Map<string, EventSource>();
   private reaction: Reaction | null = null;
@@ -43,10 +44,14 @@ export class StreamService extends Service {
     super.destroy();
   }
 
-  applyDelta(id: string, text: string): void {
+  applyDelta(id: string, draft: StreamDraft): void {
     if (!this.map.nodes[id] || !this.map.nodeOrder.includes(id)) return;
-    this.streaming = { ...this.streaming, [id]: text };
-    if (!this.map.expandedReplies[id]) {
+    if (!draft.reply && !draft.thinking) {
+      this.clearStreaming(id);
+      return;
+    }
+    this.streaming = { ...this.streaming, [id]: draft };
+    if (draft.reply && !this.map.expandedReplies[id]) {
       this.map.expandedReplies = { ...this.map.expandedReplies, [id]: true };
     }
   }
@@ -97,10 +102,10 @@ export class StreamService extends Service {
 
   private start(nodeId: string): void {
     const source = subscribeNodeStream(nodeId, {
-      onSnapshot: (text, phase) => {
-        if (phase === 'running' && text) this.applyDelta(nodeId, text);
+      onSnapshot: (draft, phase) => {
+        if (phase === 'running') this.applyDelta(nodeId, draft);
       },
-      onDelta: (text) => this.applyDelta(nodeId, text),
+      onDelta: (draft) => this.applyDelta(nodeId, draft),
       onDone: (node) => this.applyDone(nodeId, node),
       onError: (message) => this.applyError(nodeId, message),
     });

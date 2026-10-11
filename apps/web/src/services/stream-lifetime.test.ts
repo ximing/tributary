@@ -117,7 +117,7 @@ describe('stream lifetime on the shipped map', () => {
     expect(map.nodes['p1']).toBeUndefined();
 
     vi.mocked(listConversations).mockClear();
-    source?.handlers.onDelta?.('迟到的片段');
+    source?.handlers.onDelta?.({ reply: '迟到的片段', thinking: '' });
     source?.handlers.onDone?.({ ...node('p1', '还在问', 'done'), reply: '迟到的回答' });
 
     expect(map.nodes['p1']).toBeUndefined();

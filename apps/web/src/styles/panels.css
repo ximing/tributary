@@ -216,6 +216,112 @@
   text-align: center;
 }
 
+/* ---------- 卡片详情 ---------- */
+.detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--mask);
+  backdrop-filter: blur(4px);
+}
+
+.detail-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100%);
+  height: min(820px, calc(100vh - 48px));
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+  color: var(--ink);
+}
+
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding: var(--s5) var(--s5) var(--s4);
+  border-bottom: 1px solid var(--line);
+}
+
+.detail-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.detail-title h2 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.7rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.detail-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.detail-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.detail-close:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s5);
+}
+
+.detail-body .node-think.is-roomy {
+  margin-top: 0;
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+}
+
+.detail-reply {
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: 1.75;
+}
+
+.detail-wait {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.detail-wait .spin {
+  animation: node-spin 1s linear infinite;
+}
+
 /* ---------- 确认浮层 ---------- */
 .confirm-panel {
   width: min(360px, calc(100vw - 48px));

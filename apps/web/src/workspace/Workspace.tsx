@@ -3,6 +3,7 @@ import { bindServices, useService } from '@rabjs/react';
 import { Outlet, useSearchParams } from 'react-router';
 import { ReactFlowProvider } from '@xyflow/react';
 import { Canvas } from '../components/canvas/Canvas.js';
+import { CardDetail } from '../components/canvas/CardDetail.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import { ContextMenu } from '../components/ContextMenu.js';
 import { HelpPanel } from '../components/HelpPanel.js';
@@ -57,6 +58,7 @@ function WorkspaceView() {
       <ContextMenu />
       <HelpPanel />
       <ConfirmDialog />
+      <CardDetail />
       {settingsSection ? (
         <SettingsDialog
           section={settingsSection}

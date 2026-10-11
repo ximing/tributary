@@ -217,6 +217,71 @@
   animation: node-blink 0.9s steps(2) infinite;
 }
 
+.node-think {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line);
+}
+
+.node-think summary {
+  cursor: pointer;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.node-think-body {
+  max-height: 120px;
+  margin-top: 4px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+  scrollbar-width: thin;
+}
+
+.node-think.is-roomy .node-think-body {
+  max-height: 280px;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+}
+
+.node-open {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-full);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  padding: 3px 8px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: var(--shadow-1);
+}
+
+.node-card:hover:not(.is-selected) .node-open,
+.node-card.is-streaming:not(.is-selected) .node-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.node-card:hover:not(.is-selected) .node-question,
+.node-card.is-streaming:not(.is-selected) .node-question {
+  padding-right: 58px;
+}
+
+.node-open:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
 @keyframes node-blink {
   50% {
     opacity: 0;
