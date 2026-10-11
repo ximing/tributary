@@ -42,6 +42,7 @@ import {
   type NodeRecord,
 } from './conversations/service.js';
 import { enqueueAnswer } from './jobs/enqueue.js';
+import { subscribeStream } from './jobs/stream-bus.js';
 import { createModelConfig, deleteModelConfig, listModelConfigs, setDefaultModelConfig } from './providers/service.js';
 import { searchNodes } from './search/index-nodes.js';
 import { readUsage } from './usage/service.js';
@@ -350,9 +351,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     };
 
     let closed = false;
-    let lastText = node.reply ?? '';
+    let lastReply = node.reply ?? '';
+    let lastThinking = node.thinking ?? '';
     const phase = node.status === 'done' ? 'done' : node.status === 'error' ? 'error' : 'running';
-    send('snapshot', { text: lastText, phase });
+    send('snapshot', { reply: lastReply, thinking: lastThinking, phase });
     if (node.status === 'done' || node.status === 'error') {
       if (node.status === 'done') send('done', { node });
       else send('error', { message: node.reply || '模型调用失败' });
@@ -360,42 +362,71 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return;
     }
 
-    const ping = setInterval(() => {
-      if (!closed) reply.raw.write(': ping\n\n');
-    }, 15_000);
+    const timers: {
+      ping?: ReturnType<typeof setInterval>;
+      poll?: ReturnType<typeof setInterval>;
+      unsubscribe: () => void;
+    } = { unsubscribe: () => {} };
+    const finish = (current: NodeRecord) => {
+      if (closed) return;
+      closed = true;
+      if (timers.ping) clearInterval(timers.ping);
+      if (timers.poll) clearInterval(timers.poll);
+      timers.unsubscribe();
+      if (current.status === 'done') send('done', { node: current });
+      else send('error', { message: current.reply || '模型调用失败' });
+      reply.raw.end();
+    };
+
     let reading = false;
-    const poll = setInterval(() => {
-      if (closed || reading) return;
+    let again = false;
+    const pull = () => {
+      if (closed) return;
+      if (reading) {
+        again = true;
+        return;
+      }
       reading = true;
       void getNode(id)
         .then((current) => {
           if (!current || closed) return;
-          const text = current.reply ?? '';
-          if (text !== lastText) {
-            lastText = text;
-            send('delta', { text });
+          const replyText = current.reply ?? '';
+          const thinkingText = current.thinking ?? '';
+          if (replyText !== lastReply || thinkingText !== lastThinking) {
+            lastReply = replyText;
+            lastThinking = thinkingText;
+            send('delta', { reply: replyText, thinking: thinkingText });
           }
-          if (current.status === 'done' || current.status === 'error') {
-            closed = true;
-            clearInterval(ping);
-            clearInterval(poll);
-            if (current.status === 'done') send('done', { node: current });
-            else send('error', { message: current.reply || '模型调用失败' });
-            reply.raw.end();
-          }
+          if (current.status === 'done' || current.status === 'error') finish(current);
         })
         .catch((error: unknown) => {
           console.error('stream.poll_failed', error instanceof Error ? error.message : error);
         })
         .finally(() => {
           reading = false;
+          if (again && !closed) {
+            again = false;
+            pull();
+          }
         });
-    }, 150);
+    };
+
+    // NOTIFY 到了就立刻读。轮询只兜底，避免通知丢失时卡片一直空着。
+    timers.unsubscribe = subscribeStream((nodeId) => {
+      if (nodeId === id) pull();
+    });
+    timers.ping = setInterval(() => {
+      if (!closed) reply.raw.write(': ping\n\n');
+    }, 15_000);
+    timers.poll = setInterval(() => {
+      if (!closed) pull();
+    }, 400);
     request.raw.on('close', () => {
       if (closed) return;
       closed = true;
-      clearInterval(ping);
-      clearInterval(poll);
+      if (timers.ping) clearInterval(timers.ping);
+      if (timers.poll) clearInterval(timers.poll);
+      timers.unsubscribe();
     });
   });
 
@@ -407,7 +438,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(204).send();
   });
 
-  /** 重新生成：重置为 pending 并入队回答任务，客户端经 SSE 轮询拿到结果。可以改用另一个模型。 */
+  /** 重新生成：重置为 pending 并入队回答任务，客户端经 SSE 看到思考和回答。可以改用另一个模型。 */
   app.post('/api/nodes/:id/regenerate', async (request, reply) => {
     const user = await requireUser(request, reply);
     if (!user) return;

@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   parent_id uuid REFERENCES nodes(id) ON DELETE CASCADE,
   question text NOT NULL,
   reply text,
+  thinking text,
   status text NOT NULL CHECK (status IN ('pending', 'done', 'error')),
   provider_id uuid REFERENCES model_configs(id) ON DELETE SET NULL,
   model text,
@@ -126,6 +127,7 @@ EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS note text;
 ALTER TABLE nodes ADD COLUMN IF NOT EXISTS sticker text;
+ALTER TABLE nodes ADD COLUMN IF NOT EXISTS thinking text;
 CREATE TABLE IF NOT EXISTS links (
   id uuid PRIMARY KEY,
   conversation_id uuid NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,

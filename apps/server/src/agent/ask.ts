@@ -1,9 +1,10 @@
 import { Agent, type AgentMessage } from '@earendil-works/pi-agent-core';
-import { contentText, createModels, createProvider, type Model } from '@earendil-works/pi-ai';
+import { contentText, createModels, createProvider, type AssistantMessage, type Model } from '@earendil-works/pi-ai';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { MOONSHOTAI_CN_MODELS } from '@earendil-works/pi-ai/providers/moonshotai-cn.models';
 import type { ModelProvider } from '@tributary/domain';
 import type { ModelMessage } from './context.js';
+import { absorbPiDelta, visibleDraft, type DraftText } from './draft-text.js';
 
 export interface AskInput {
   apiKey: string;
@@ -15,6 +16,7 @@ export interface AskInput {
 
 export interface AskResult {
   text: string;
+  thinking: string;
   promptTokens: number;
   completionTokens: number;
   totalTokens: number;
@@ -116,9 +118,23 @@ function toAgentMessages(messages: ModelMessage[]): AgentMessage[] {
 }
 
 export interface StreamAskHandlers {
-  /** 每收到一段文本增量时回调，参数为累计全文 */
+  /** 累计正文。思考标签还没剥掉，调用方用 visibleDraft 再分一次。 */
   onDelta?: (fullText: string) => void;
+  /** 累计思考。来自 reasoning / thinking_delta，不含正文里的标签。 */
+  onThinking?: (fullThinking: string) => void;
   signal?: AbortSignal;
+}
+
+function thinkingFrom(message: AssistantMessage): string {
+  return message.content
+    .flatMap((block) => (block.type === 'thinking' && !block.redacted && block.thinking.trim() ? [block.thinking.trim()] : []))
+    .join('\n\n');
+}
+
+function publishDraft(state: DraftText, handlers: StreamAskHandlers, sent: DraftText): DraftText {
+  if (state.reply !== sent.reply) handlers.onDelta?.(state.reply);
+  if (state.thinking !== sent.thinking) handlers.onThinking?.(state.thinking);
+  return state;
 }
 
 export async function streamAsk(input: AskInput & { provider?: ModelProvider }, handlers: StreamAskHandlers = {}): Promise<AskResult> {
@@ -154,14 +170,12 @@ export async function streamAsk(input: AskInput & { provider?: ModelProvider }, 
     finishTurn: () => ({ action: 'end' }),
   });
 
-  let streamed = '';
+  let streamed: DraftText = { reply: '', thinking: '' };
   const unsubscribe = agent.subscribe((event) => {
     if (event.type !== 'message_update') return;
-    const inner = event.assistantMessageEvent;
-    if (inner.type === 'text_delta') {
-      streamed += inner.delta;
-      handlers.onDelta?.(streamed);
-    }
+    const next = absorbPiDelta(streamed, event.assistantMessageEvent);
+    if (next === streamed) return;
+    streamed = publishDraft(next, handlers, streamed);
   });
   const abort = () => agent.abort();
   handlers.signal?.addEventListener('abort', abort, { once: true });
@@ -182,12 +196,13 @@ export async function streamAsk(input: AskInput & { provider?: ModelProvider }, 
   if (assistant.stopReason === 'error' || assistant.stopReason === 'aborted') {
     throw new AskError(assistant.errorMessage || '模型调用失败');
   }
-  const text = contentText(assistant.content).trim();
+  const visible = visibleDraft({ reply: contentText(assistant.content), thinking: thinkingFrom(assistant) || streamed.thinking });
+  const text = visible.reply.trim();
   if (!text) throw new AskError('模型返回了空回复');
   const promptTokens = assistant.usage.input;
   const completionTokens = assistant.usage.output;
   const totalTokens = assistant.usage.totalTokens || promptTokens + completionTokens;
-  return { text, promptTokens, completionTokens, totalTokens };
+  return { text, thinking: visible.thinking.trim(), promptTokens, completionTokens, totalTokens };
 }
 
 export async function ask(input: AskInput): Promise<AskResult> {
@@ -231,7 +246,7 @@ async function streamClaude(input: AskInput, handlers: StreamAskHandlers): Promi
     throw new AskError(claudeError(await response.text().catch(() => '')));
   }
 
-  let text = '';
+  let streamed: DraftText = { reply: '', thinking: '' };
   let promptTokens = 0;
   let completionTokens = 0;
   const reader = response.body.getReader();
@@ -246,7 +261,7 @@ async function streamClaude(input: AskInput, handlers: StreamAskHandlers): Promi
     if (!data || data === '[DONE]') return;
     let payload: {
       type?: string;
-      delta?: { type?: string; text?: string };
+      delta?: { type?: string; text?: string; thinking?: string };
       message?: { usage?: { input_tokens?: number; output_tokens?: number } };
       usage?: { output_tokens?: number };
       error?: { message?: string };
@@ -261,9 +276,11 @@ async function streamClaude(input: AskInput, handlers: StreamAskHandlers): Promi
       promptTokens = payload.message?.usage?.input_tokens ?? promptTokens;
       completionTokens = payload.message?.usage?.output_tokens ?? completionTokens;
     }
+    if (payload.type === 'content_block_delta' && payload.delta?.type === 'thinking_delta' && payload.delta.thinking) {
+      streamed = publishDraft({ reply: streamed.reply, thinking: streamed.thinking + payload.delta.thinking }, handlers, streamed);
+    }
     if (payload.type === 'content_block_delta' && payload.delta?.type === 'text_delta' && payload.delta.text) {
-      text += payload.delta.text;
-      handlers.onDelta?.(text);
+      streamed = publishDraft({ reply: streamed.reply + payload.delta.text, thinking: streamed.thinking }, handlers, streamed);
     }
     if (payload.type === 'message_delta' && typeof payload.usage?.output_tokens === 'number') {
       completionTokens = payload.usage.output_tokens;
@@ -281,10 +298,12 @@ async function streamClaude(input: AskInput, handlers: StreamAskHandlers): Promi
   if (buffer.trim()) consume(buffer);
 
   if (handlers.signal?.aborted) throw new AskError('模型调用已中断');
-  const reply = text.trim();
+  const visible = visibleDraft(streamed);
+  const reply = visible.reply.trim();
   if (!reply) throw new AskError('模型返回了空回复');
   return {
     text: reply,
+    thinking: visible.thinking.trim(),
     promptTokens,
     completionTokens,
     totalTokens: promptTokens + completionTokens,

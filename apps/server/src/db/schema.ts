@@ -53,6 +53,7 @@ export const nodes = pgTable('nodes', {
   parentId: uuid('parent_id'),
   question: text('question').notNull(),
   reply: text('reply'),
+  thinking: text('thinking'),
   status: text('status').notNull(),
   providerId: uuid('provider_id').references(() => modelConfigs.id, { onDelete: 'set null' }),
   model: text('model'),

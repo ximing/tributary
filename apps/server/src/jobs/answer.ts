@@ -2,56 +2,18 @@ import { readAgentSettings } from '../agent/settings.js';
 import { z } from 'zod';
 import { AskError, streamModel } from '../agent/ask.js';
 import { messagesForNode } from '../agent/context.js';
+import { visibleDraft, type DraftText } from '../agent/draft-text.js';
 import { AgentTerminalError } from '../agent/terminal-error.js';
 import type { JobRow } from '../db/schema.js';
-import { completeQuestionNode, getNode, listConversationNodes, writePendingReply } from '../conversations/service.js';
+import { completeQuestionNode, getNode, listConversationNodes, writePendingDraft } from '../conversations/service.js';
 import { getModelSecret } from '../providers/service.js';
+import { createDraftSink } from './draft-sink.js';
 import { heartbeatJob, isJobRunning } from './heartbeat.js';
 
-const DRAFT_FLUSH_MS = 150;
 const HEARTBEAT_MS = 15_000;
 const RUN_TIMEOUT_MS = 600_000;
 
 const payloadSchema = z.object({ nodeId: z.string().uuid() });
-
-function createDraftSink(write: (text: string) => Promise<void>): {
-  push(text: string): void;
-  finish(): Promise<void>;
-} {
-  let text = '';
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let chain = Promise.resolve();
-  let dirty = false;
-
-  const flush = () => {
-    dirty = false;
-    const snapshot = text;
-    chain = chain.then(() => write(snapshot)).catch((error: unknown) => {
-      console.warn('answer.draft_failed', error instanceof Error ? error.message : error);
-    });
-  };
-
-  return {
-    push(next) {
-      text = next;
-      dirty = true;
-      if (timer) return;
-      timer = setTimeout(() => {
-        timer = null;
-        flush();
-      }, DRAFT_FLUSH_MS);
-      timer.unref?.();
-    },
-    async finish() {
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      if (dirty) flush();
-      await chain;
-    },
-  };
-}
 
 export function answerNodeId(job: JobRow): string | null {
   const parsed = payloadSchema.safeParse(job.payload);
@@ -75,13 +37,18 @@ export async function processAnswer(job: JobRow): Promise<void> {
   if (!nodeId) throw new AgentTerminalError('任务参数无效');
   const node = await getNode(nodeId);
   if (!node || node.status !== 'pending') return;
-  await writePendingReply(nodeId, null);
+  await writePendingDraft(nodeId, { reply: null, thinking: null });
   if (!node.providerId || !node.model) throw new AgentTerminalError('未选择模型');
   const provider = await getModelSecret(node.providerId);
   if (!provider) throw new AgentTerminalError('模型配置不存在');
 
   const settings = await readAgentSettings(job.userId);
-  const draft = createDraftSink((text) => writePendingReply(nodeId, text));
+  let raw: DraftText = { reply: '', thinking: '' };
+  const draft = createDraftSink((text) => writePendingDraft(nodeId, { reply: text.reply, thinking: text.thinking || null }));
+  const pushDraft = (next: DraftText) => {
+    raw = next;
+    draft.push(visibleDraft(next));
+  };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
   timeout.unref?.();
@@ -113,13 +80,16 @@ export async function processAnswer(job: JobRow): Promise<void> {
       },
       {
         signal: controller.signal,
-        onDelta: (text) => draft.push(text),
+        onDelta: (text) => pushDraft({ reply: text, thinking: raw.thinking }),
+        onThinking: (thinking) => pushDraft({ reply: raw.reply, thinking }),
       },
     );
     await draft.finish();
     if (!(await isJobRunning(job.id))) return;
+    const visible = visibleDraft({ reply: answer.text, thinking: answer.thinking || raw.thinking });
     await completeQuestionNode(nodeId, {
-      reply: answer.text,
+      reply: visible.reply,
+      thinking: visible.thinking || null,
       status: 'done',
       providerName: provider.label,
       model: node.model,

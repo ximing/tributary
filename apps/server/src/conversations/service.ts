@@ -17,6 +17,7 @@ import {
 import { db } from '../db/client.js';
 import { conversations, jobs, links, nodes, usageCalls } from '../db/schema.js';
 import { enqueueJob } from '../jobs/enqueue.js';
+import { notifyNodeStream } from '../jobs/stream-bus.js';
 import { getModelForUser } from '../providers/service.js';
 import { indexNode, removeNode } from '../search/index-nodes.js';
 
@@ -25,6 +26,7 @@ export interface NodeRecord {
   parentId: string | null;
   question: string;
   reply: string | null;
+  thinking: string | null;
   status: string;
   providerId: string | null;
   model: string | null;
@@ -53,6 +55,7 @@ function toNode(row: typeof nodes.$inferSelect): NodeRecord {
     parentId: row.parentId,
     question: row.question,
     reply: row.reply,
+    thinking: row.thinking,
     status: row.status,
     providerId: row.providerId,
     model: row.model,
@@ -202,6 +205,7 @@ export async function insertOutlineNodes(
       parentId: itemParent,
       question: item.question,
       reply: null,
+      thinking: null,
       status: 'done',
       providerId: null,
       model: null,
@@ -247,6 +251,7 @@ export async function completeQuestionNode(
   nodeId: string,
   input: {
     reply: string;
+    thinking?: string | null;
     status: 'done' | 'error';
     providerName?: string;
     model?: string;
@@ -257,7 +262,11 @@ export async function completeQuestionNode(
 ): Promise<NodeRecord> {
   const [row] = await db
     .update(nodes)
-    .set({ reply: input.reply, status: input.status })
+    .set({
+      reply: input.reply,
+      status: input.status,
+      ...(input.thinking !== undefined ? { thinking: input.thinking } : {}),
+    })
     .where(and(eq(nodes.id, nodeId), eq(nodes.status, 'pending')))
     .returning();
   if (!row) {
@@ -291,6 +300,7 @@ export async function completeQuestionNode(
   } catch (error) {
     console.error('search.index_failed', error instanceof Error ? error.message : error);
   }
+  await notifyNodeStream(row.id);
   return toNode(row);
 }
 
@@ -321,12 +331,21 @@ export async function nodeOwnedBy(nodeId: string, userId: string): Promise<boole
   return Boolean(row);
 }
 
-export async function writePendingReply(nodeId: string, reply: string | null): Promise<void> {
-  await db.update(nodes).set({ reply }).where(and(eq(nodes.id, nodeId), eq(nodes.status, 'pending')));
+/** 生成过程中的正文和思考。只覆盖仍在 pending 的节点，写完通知正在看的 SSE。 */
+export async function writePendingDraft(nodeId: string, draft: { reply: string | null; thinking: string | null }): Promise<void> {
+  await db
+    .update(nodes)
+    .set({ reply: draft.reply, thinking: draft.thinking })
+    .where(and(eq(nodes.id, nodeId), eq(nodes.status, 'pending')));
+  await notifyNodeStream(nodeId);
 }
 
 export async function markPending(nodeId: string): Promise<NodeRecord | null> {
-  const [row] = await db.update(nodes).set({ status: 'pending', reply: null }).where(eq(nodes.id, nodeId)).returning();
+  const [row] = await db
+    .update(nodes)
+    .set({ status: 'pending', reply: null, thinking: null })
+    .where(eq(nodes.id, nodeId))
+    .returning();
   return row ? toNode(row) : null;
 }
 
@@ -337,7 +356,11 @@ export async function regenerateQuestionNode(
   override?: { providerId: string; model: string },
 ): Promise<NodeRecord | null> {
   if (!(await nodeOwnedBy(nodeId, userId))) return null;
-  const patch: { status: 'pending'; reply: null; providerId?: string; model?: string } = { status: 'pending', reply: null };
+  const patch: { status: 'pending'; reply: null; thinking: null; providerId?: string; model?: string } = {
+    status: 'pending',
+    reply: null,
+    thinking: null,
+  };
   if (override) {
     const config = await getModelForUser(override.providerId, userId);
     if (!config) throw new Error('模型配置不存在');
@@ -477,6 +500,7 @@ export interface RestoreInput {
   parentId: string | null;
   question: string;
   reply: string | null;
+  thinking?: string | null;
   status: string;
   providerId: string | null;
   model: string | null;
@@ -521,6 +545,7 @@ export async function restoreQuestionSubtree(
     parentId: snap.parentId,
     question: snap.question,
     reply: snap.reply,
+    thinking: snap.thinking ?? null,
     status: snap.status,
     providerId: snap.providerId,
     model: snap.model,
@@ -542,6 +567,7 @@ export async function restoreQuestionSubtree(
         parentId: node.parentId,
         question: node.question,
         reply: node.reply,
+        thinking: node.thinking,
         status: node.status,
         providerId: node.providerId,
         model: node.model,
@@ -599,6 +625,7 @@ export async function copyQuestionSubtree(nodeId: string, userId: string): Promi
       parentId: link.parentId,
       question: source.question,
       reply: source.reply,
+      thinking: source.thinking,
       status: source.status === 'pending' ? 'done' : source.status,
       providerId,
       model,
@@ -622,6 +649,7 @@ export async function copyQuestionSubtree(nodeId: string, userId: string): Promi
         parentId: node.parentId,
         question: node.question,
         reply: node.reply,
+        thinking: node.thinking,
         status: node.status,
         providerId: node.providerId,
         model: node.model,
