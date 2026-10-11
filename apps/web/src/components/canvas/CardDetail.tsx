@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { observer, useService } from '@rabjs/react';
 import { stickerOf } from '@tributary/domain';
@@ -17,11 +17,20 @@ export const CardDetail = observer(function CardDetail() {
   const node = id ? map.nodes[id] : undefined;
   const bodyRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  const noteEditing = useRef(false);
+  const markNoteEditing = useCallback((editing: boolean) => {
+    noteEditing.current = editing;
+  }, []);
 
   useEffect(() => {
     if (!id) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName;
+        if (tag === 'TEXTAREA' || tag === 'INPUT' || target.isContentEditable) return;
+      }
       event.preventDefault();
       event.stopPropagation();
       map.closeDetail();
@@ -37,7 +46,7 @@ export const CardDetail = observer(function CardDetail() {
 
   useEffect(() => {
     const host = bodyRef.current;
-    if (!host || !streaming || !stick.current) return;
+    if (!host || !streaming || !stick.current || noteEditing.current) return;
     host.scrollTop = host.scrollHeight;
   }, [reply, thinking, streaming]);
 
@@ -90,12 +99,7 @@ export const CardDetail = observer(function CardDetail() {
             stick.current = host.scrollHeight - host.scrollTop - host.clientHeight < 64;
           }}
         >
-          {node.note ? (
-            <blockquote className="present-note">
-              <span>笔记</span>
-              {node.note}
-            </blockquote>
-          ) : null}
+          <DetailNote key={id} id={id} note={node.note} onEditing={markNoteEditing} />
           {waiting ? (
             <p className="detail-wait">
               <LoaderCircle className="spin" size={14} aria-hidden />
@@ -126,5 +130,105 @@ export const CardDetail = observer(function CardDetail() {
       </article>
     </div>,
     document.body,
+  );
+});
+
+/** 详情里的笔记：点开编辑，失焦或 ⌘ Enter 保存。Escape 只退出编辑，不关弹窗。 */
+const DetailNote = observer(function DetailNote({
+  id,
+  note,
+  onEditing,
+}: {
+  id: string;
+  note: string | null;
+  onEditing: (editing: boolean) => void;
+}) {
+  const map = useService(MapService);
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(note ?? '');
+  const skipBlur = useRef(false);
+
+  useEffect(() => {
+    onEditing(editing);
+    return () => onEditing(false);
+  }, [editing, onEditing]);
+
+  useEffect(() => {
+    if (!editing) setText(note ?? '');
+  }, [note, editing]);
+
+  const stop = () => {
+    onEditing(false);
+    setEditing(false);
+  };
+
+  if (!editing) {
+    if (!note) {
+      return (
+        <button
+          type="button"
+          className="detail-note-start"
+          onClick={() => {
+            onEditing(true);
+            setEditing(true);
+          }}
+        >
+          写笔记
+        </button>
+      );
+    }
+    return (
+      <button
+        type="button"
+        className="detail-note"
+        title="点击编辑笔记"
+        onClick={() => {
+          onEditing(true);
+          setEditing(true);
+        }}
+      >
+        <span>笔记</span>
+        {note}
+      </button>
+    );
+  }
+
+  return (
+    <div className="detail-note-edit">
+      <span>笔记</span>
+      <textarea
+        className="detail-note-input"
+        aria-label="笔记"
+        autoFocus
+        rows={Math.min(10, Math.max(4, text.split('\n').length))}
+        value={text}
+        placeholder="写给自己的笔记，不会发给模型"
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            skipBlur.current = true;
+            setText(note ?? '');
+            stop();
+            return;
+          }
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            skipBlur.current = true;
+            void map.saveNote(id, text);
+            stop();
+          }
+        }}
+        onBlur={() => {
+          if (skipBlur.current) {
+            skipBlur.current = false;
+            return;
+          }
+          void map.saveNote(id, text);
+          stop();
+        }}
+      />
+    </div>
   );
 });

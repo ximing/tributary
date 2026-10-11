@@ -295,6 +295,61 @@
   padding: var(--s5);
 }
 
+.detail-note,
+.detail-note-edit {
+  display: block;
+  width: 100%;
+  margin: 0 0 var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 0;
+  border-left: 2px solid var(--accent);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  text-align: left;
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.detail-note span,
+.detail-note-edit span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.detail-note-start {
+  display: inline-flex;
+  margin: 0 0 var(--s4);
+  padding: 6px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.detail-note-start:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.detail-note-input {
+  width: 100%;
+  resize: vertical;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.6;
+}
+
 .detail-body .node-think.is-roomy {
   margin-top: 0;
   padding: var(--s3) var(--s4);
