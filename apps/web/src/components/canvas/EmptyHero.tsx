@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { observer, useService } from '@rabjs/react';
 import { SendHorizontal } from 'lucide-react';
+import { useImeGuard } from '../../hooks/useImeGuard.js';
 import { MapService } from '../../workspace/map.service.js';
 import { ModelChip } from '../ModelChip.js';
 
 /** 空对话时画布中央的第一问。输入框里的字在提交前留在组件里。 */
 export const EmptyHero = observer(function EmptyHero() {
   const map = useService(MapService);
+  const ime = useImeGuard();
   const [text, setText] = useState('');
 
   const ask = () => {
@@ -27,7 +29,10 @@ export const EmptyHero = observer(function EmptyHero() {
           placeholder="输入你的问题…"
           value={text}
           onChange={(event) => setText(event.target.value)}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
           onKeyDown={(event) => {
+            if (ime.owns(event)) return;
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault();
               ask();

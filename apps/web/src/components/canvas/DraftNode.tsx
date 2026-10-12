@@ -3,6 +3,7 @@ import { observer, useService } from '@rabjs/react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import { CornerDownRight, SendHorizontal, X } from 'lucide-react';
 import { truncate } from '../../lib/format.js';
+import { useImeGuard } from '../../hooks/useImeGuard.js';
 import { useNodeSize } from '../../hooks/useNodeSize.js';
 import { CanvasPrefsService } from '../../services/canvas-prefs.service.js';
 import { MapService } from '../../workspace/map.service.js';
@@ -13,10 +14,12 @@ type DraftFlowNode = Node<Record<string, never>, 'draft'>;
 /**
  * 画布内提问：草稿即节点。
  * 子/同级草稿顶部带上下文 chip（× 掉转为根问题）；Enter 提交（Shift+Enter 换行），Esc 取消。
+ * 输入法还在组字或选词时，Enter 留给输入法，不提交、不发起模型请求。
  */
 export const DraftNodeView = observer(function DraftNodeView({ id }: NodeProps<DraftFlowNode>) {
   const map = useService(MapService);
   const prefs = useService(CanvasPrefsService);
+  const ime = useImeGuard();
   const draft = map.drafts.find((item) => item.tempId === id);
   const anchorQuestion = draft?.anchorId ? (map.nodes[draft.anchorId]?.question ?? null) : null;
   const [text, setText] = useState(draft?.seed ?? '');
@@ -62,8 +65,11 @@ export const DraftNodeView = observer(function DraftNodeView({ id }: NodeProps<D
         aria-label="新问题"
         value={text}
         onChange={(event) => setText(event.target.value)}
+        onCompositionStart={ime.onCompositionStart}
+        onCompositionEnd={ime.onCompositionEnd}
         onKeyDown={(event) => {
           event.stopPropagation();
+          if (ime.owns(event)) return;
           if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             submit();
