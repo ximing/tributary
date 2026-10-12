@@ -270,40 +270,35 @@
   line-height: 1.65;
 }
 
+/* 详情固定在卡片右上角，不占文档流，悬停时高度不变。 */
 .node-open {
   position: absolute;
   z-index: 3;
-  top: 8px;
-  right: 8px;
+  top: -13px;
+  right: var(--s3);
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border: 1px solid var(--line);
+  height: 26px;
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-full);
   background: var(--surface);
   color: var(--ink-2);
   font-size: var(--text-xs);
-  padding: 3px 8px;
+  line-height: 1;
+  padding: 0 8px 0 7px;
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
   box-shadow: var(--shadow-1);
-}
-
-.node-card:hover:not(.is-selected) .node-open,
-.node-card.is-streaming:not(.is-selected) .node-open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.node-card:hover:not(.is-selected) .node-question,
-.node-card.is-streaming:not(.is-selected) .node-question {
-  padding-right: 58px;
+  transition:
+    background 150ms var(--ease),
+    border-color 150ms var(--ease),
+    color 150ms var(--ease);
 }
 
 .node-open:hover {
+  background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent-ink);
+  color: var(--on-accent);
 }
 
 @keyframes node-blink {
