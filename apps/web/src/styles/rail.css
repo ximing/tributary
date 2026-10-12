@@ -73,15 +73,10 @@
   width: 36px;
   height: 36px;
   margin: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-s);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-family: var(--font-serif);
-  font-size: 19px;
-  font-weight: 700;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.12);
+  flex: none;
+  display: block;
+  border-radius: 8px;
+  object-fit: cover;
 }
 
 .brand h1 {

@@ -21,7 +21,7 @@ export const Rail = observer(function Rail() {
     <aside className={`rail${collapsed ? ' is-collapsed' : ''}`} aria-label="对话列表">
       <div className="rail-head">
         <header className="brand">
-          <p className="mark">支</p>
+          <img className="mark" src="/icon-192.png" alt="" width={36} height={36} />
           <div className="brand-text">
             <h1>支流</h1>
             <p>问题长成一棵树</p>
