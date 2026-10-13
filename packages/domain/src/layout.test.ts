@@ -70,6 +70,22 @@ describe('layout', () => {
     expect(placed.y).toBeLessThan(midpoint);
   });
 
+  it('pushes the next column past the widest card in this column', () => {
+    const points = layoutTree(
+      [
+        { id: 'wide', parentId: null },
+        { id: 'narrow', parentId: null },
+        { id: 'child', parentId: 'narrow' },
+      ],
+      { widthOf: (id) => (id === 'wide' ? 420 : 200) },
+    );
+    const byId = new Map(points.map((point) => [point.id, point]));
+    // 列距余量是默认层距 320 减去默认宽度 280。下一列看这一列最宽的卡片。
+    expect(byId.get('child')!.x - byId.get('narrow')!.x).toBeCloseTo(420 + 40);
+    expect(byId.get('wide')!.x).toBe(0);
+    expect(byId.get('narrow')!.x).toBe(0);
+  });
+
   describe('tb（上下布局）', () => {
     it('places children below the parent and spreads siblings horizontally', () => {
       const points = layoutTree(

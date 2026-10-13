@@ -36,8 +36,9 @@ const DEFAULT_GAP_Y = 40;
 /**
  * 可变高度 tidy tree：自底向上为每棵子树分配连续的交叉轴区间，
  * 父节点在交叉轴上居中于其子节点区间。
- * lr：x = 深度 × gapX（左边缘），y 为节点中心；
- * tb：y = 深度 × gapX（中心），x 为左边缘。
+ * lr：x 为列的左边缘，y 为节点中心。各列默认宽度相同时，列距仍是 gapX。
+ * 某一列出现更宽的卡片时，下一列从该列最宽的右缘再空出 gapX − 默认宽度，避免重叠。
+ * tb：y = 深度 × gapX（中心），x 为左边缘，兄弟间距用各自宽度。
  * 两种方向都保持「y 为中心、x 为左边缘」的约定，topLeft 换算一致。
  */
 export function layoutTree(nodes: readonly LayoutNode[], options: LayoutOptions = {}): LayoutPoint[] {
@@ -58,6 +59,7 @@ export function layoutTree(nodes: readonly LayoutNode[], options: LayoutOptions 
 
   const points: LayoutPoint[] = [];
   let cursor = 0;
+  const columnLeft = leftEdges(children, widthOf, gapX);
 
   const walkLR = (id: string, depth: number): number => {
     const kids = children.get(id) ?? [];
@@ -75,7 +77,7 @@ export function layoutTree(nodes: readonly LayoutNode[], options: LayoutOptions 
       });
       center = (first + last) / 2;
     }
-    points.push({ id, x: depth * gapX, y: center });
+    points.push({ id, x: columnLeft[depth] ?? depth * gapX, y: center });
     return center;
   };
 
@@ -102,6 +104,30 @@ export function layoutTree(nodes: readonly LayoutNode[], options: LayoutOptions 
   const walk = direction === 'tb' ? walkTB : walkLR;
   for (const rootId of children.get(null) ?? []) walk(rootId, 0);
   return points;
+}
+
+/** 左右布局每一列的左边缘。默认宽度下等于 depth × gapX。 */
+function leftEdges(
+  children: ReadonlyMap<string | null, readonly string[]>,
+  widthOf: (id: string) => number,
+  gapX: number,
+): number[] {
+  const depthOf = new Map<string, number>();
+  const assign = (id: string, depth: number) => {
+    depthOf.set(id, depth);
+    for (const childId of children.get(id) ?? []) assign(childId, depth + 1);
+  };
+  for (const rootId of children.get(null) ?? []) assign(rootId, 0);
+
+  const maxWidth: number[] = [];
+  for (const [id, depth] of depthOf) maxWidth[depth] = Math.max(maxWidth[depth] ?? 0, widthOf(id));
+
+  const slack = gapX - DEFAULT_WIDTH;
+  const origin = [0];
+  for (let depth = 0; depth < maxWidth.length - 1; depth += 1) {
+    origin.push(origin[depth]! + (maxWidth[depth] ?? DEFAULT_WIDTH) + slack);
+  }
+  return origin;
 }
 
 /** React Flow 的 position 是节点左上角，layoutTree 的 y 是中心。 */
