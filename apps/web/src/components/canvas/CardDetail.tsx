@@ -46,6 +46,13 @@ export const CardDetail = observer(function CardDetail() {
 
   useEffect(() => {
     const host = bodyRef.current;
+    if (host) host.scrollTop = 0;
+    // 设 scrollTop 会同步触发 onScroll，可能把跟随关掉。打开新卡片时重新跟上。
+    stick.current = true;
+  }, [id]);
+
+  useEffect(() => {
+    const host = bodyRef.current;
     if (!host || !streaming || !stick.current || noteEditing.current) return;
     host.scrollTop = host.scrollHeight;
   }, [reply, thinking, streaming]);
@@ -65,13 +72,6 @@ export const CardDetail = observer(function CardDetail() {
         onClick={(event) => event.stopPropagation()}
       >
         <header className="detail-head">
-          <div className="detail-title">
-            <h2>
-              {sticker ? <span className="node-sticker">{sticker.mark}</span> : null}
-              {node.question}
-            </h2>
-            {node.model ? <AnswerBadge providerId={node.providerId} model={node.model} /> : null}
-          </div>
           <div className="detail-actions">
             {node.status === 'pending' || streaming ? (
               <button
@@ -99,6 +99,13 @@ export const CardDetail = observer(function CardDetail() {
             stick.current = host.scrollHeight - host.scrollTop - host.clientHeight < 64;
           }}
         >
+          <div className="detail-question">
+            <h2>
+              {sticker ? <span className="node-sticker">{sticker.mark}</span> : null}
+              {node.question}
+            </h2>
+            {node.model ? <AnswerBadge providerId={node.providerId} model={node.model} /> : null}
+          </div>
           <DetailNote key={id} id={id} note={node.note} onEditing={markNoteEditing} />
           {waiting ? (
             <p className="detail-wait">

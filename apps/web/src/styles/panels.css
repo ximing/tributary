@@ -243,18 +243,19 @@
 
 .detail-head {
   display: flex;
-  align-items: flex-start;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
   gap: var(--s4);
-  padding: var(--s5) var(--s5) var(--s4);
+  padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--line);
 }
 
-.detail-title {
-  flex: 1;
-  min-width: 0;
+.detail-question {
+  margin-bottom: var(--s5);
 }
 
-.detail-title h2 {
+.detail-question h2 {
   margin: 0;
   font-family: var(--font-serif);
   font-size: 1.7rem;
@@ -356,6 +357,11 @@
   border: 0;
   border-radius: var(--r-m);
   background: var(--surface-2);
+}
+
+.detail-body .node-think.is-roomy .node-think-body {
+  max-height: none;
+  overflow: visible;
 }
 
 .detail-reply {
