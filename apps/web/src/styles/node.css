@@ -100,6 +100,10 @@
   border-color: var(--danger);
 }
 
+.node-question-wrap {
+  position: relative;
+}
+
 .node-question {
   margin: 0;
   font-family: var(--font-serif);
@@ -107,6 +111,42 @@
   font-weight: 600;
   line-height: 1.5;
   overflow-wrap: break-word;
+}
+
+.node-question.is-clamped {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 用来量完整高度，不占位。和可见问题同一宽度，拖宽后会重新判断要不要折叠。 */
+.node-question-measure {
+  position: absolute;
+  z-index: -1;
+  visibility: hidden;
+  pointer-events: none;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.node-question-fold {
+  display: inline-flex;
+  margin-top: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.node-question-fold:hover {
+  color: var(--accent);
 }
 
 .node-resize {

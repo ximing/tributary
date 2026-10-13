@@ -36,7 +36,8 @@ export const MapFind = observer(function MapFind() {
     const needle = findQuery.trim().toLowerCase();
     const hit = current ? map.nodes[current] : undefined;
     const inReply = Boolean(hit && needle && (hit.reply ?? '').toLowerCase().includes(needle));
-    map.syncFindHit(current, Boolean(current && inReply));
+    const inQuestion = Boolean(hit && needle && hit.question.toLowerCase().includes(needle));
+    map.syncFindHit(current, Boolean(current && inReply), Boolean(current && inQuestion));
     if (current && needle) void map.revealNode(current);
   }, [findOpen, findQuery, findCursor, conversations.activeId, current, map]);
 

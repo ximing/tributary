@@ -73,6 +73,8 @@ export class MapService extends Service {
   selectedId: string | null = null;
   selectionEpoch = 0;
   expandedReplies: Record<string, boolean> = {};
+  /** 长问题默认收起。展开过的留在这一次打开里。 */
+  expandedQuestions: Record<string, boolean> = {};
   drafts: DraftNode[] = [];
   heights: Record<string, number> = {};
   /** 拖出来的卡片宽度。没记过的用默认宽度。 */
@@ -202,6 +204,10 @@ export class MapService extends Service {
 
   toggleReply(id: string): void {
     this.expandedReplies = { ...this.expandedReplies, [id]: !this.expandedReplies[id] };
+  }
+
+  toggleQuestion(id: string): void {
+    this.expandedQuestions = { ...this.expandedQuestions, [id]: !this.expandedQuestions[id] };
   }
 
   widthOf(id: string): number {
@@ -484,10 +490,11 @@ export class MapService extends Service {
     this.findCurrentId = null;
   }
 
-  /** 查找条把当前命中写回地图，命中在回答里时展开那一张卡片。 */
-  syncFindHit(id: string | null, expandReply: boolean): void {
+  /** 查找条把当前命中写回地图。命中在回答或问题里时，把那一段展开。 */
+  syncFindHit(id: string | null, expandReply: boolean, expandQuestion = false): void {
     this.findCurrentId = id;
     if (id && expandReply) this.expandedReplies = { ...this.expandedReplies, [id]: true };
+    if (id && expandQuestion) this.expandedQuestions = { ...this.expandedQuestions, [id]: true };
   }
 
   async stopNode(id: string): Promise<void> {
@@ -911,12 +918,14 @@ export class MapService extends Service {
     const nodes = { ...this.nodes };
     const heights = { ...this.heights };
     const expandedReplies = { ...this.expandedReplies };
+    const expandedQuestions = { ...this.expandedQuestions };
     const widths = { ...this.widths };
     let widthsChanged = false;
     for (const nid of removed) {
       delete nodes[nid];
       delete heights[nid];
       delete expandedReplies[nid];
+      delete expandedQuestions[nid];
       if (nid in widths) {
         delete widths[nid];
         widthsChanged = true;
@@ -925,6 +934,7 @@ export class MapService extends Service {
     this.nodes = nodes;
     this.heights = heights;
     this.expandedReplies = expandedReplies;
+    this.expandedQuestions = expandedQuestions;
     this.widths = widths;
     if (widthsChanged) writeCardWidths(widths);
     this.streams.forget(removed);

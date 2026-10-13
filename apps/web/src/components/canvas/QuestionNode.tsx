@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { observer, useService } from '@rabjs/react';
 import { createPortal } from 'react-dom';
 import { stickerOf } from '@tributary/domain';
 import { Handle, Position, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
 import { ChevronDown, CircleAlert, LoaderCircle, Maximize2, Plus, RefreshCw, Square } from 'lucide-react';
 import { useNodeSize } from '../../hooks/useNodeSize.js';
+import { QUESTION_LINE_CLAMP } from '../../lib/cardWidth.js';
 import { markElement, splitHighlight } from '../../lib/findMark.js';
 import { CanvasPrefsService } from '../../services/canvas-prefs.service.js';
 import { MapService } from '../../workspace/map.service.js';
@@ -106,16 +107,15 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
       {editing ? (
         <QuestionEditor id={id} question={node.question} />
       ) : (
-        <p
-          className="node-question"
-          title="空格或双击编辑"
-          onDoubleClick={(event) => {
-            event.stopPropagation();
-            map.setEditing(id);
-          }}
-        >
-          <MarkedText text={node.question} query={findQuery} sticker={node.sticker} />
-        </p>
+        <QuestionText
+          text={node.question}
+          query={findQuery}
+          sticker={node.sticker}
+          open={Boolean(map.expandedQuestions[id])}
+          width={map.widthOf(id)}
+          onToggle={() => map.toggleQuestion(id)}
+          onEdit={() => map.setEditing(id)}
+        />
       )}
 
       {node.model ? <AnswerBadge providerId={node.providerId} model={node.model} /> : null}
@@ -271,6 +271,68 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
     </div>
   );
 });
+
+/** 问题先按完整高度量一遍。超出行数才收起，并给出展开。 */
+function QuestionText({
+  text,
+  query,
+  sticker,
+  open,
+  width,
+  onToggle,
+  onEdit,
+}: {
+  text: string;
+  query: string;
+  sticker?: string | null;
+  open: boolean;
+  width: number;
+  onToggle: () => void;
+  onEdit: () => void;
+}) {
+  const measureRef = useRef<HTMLParagraphElement>(null);
+  const [overflows, setOverflows] = useState(false);
+  useLayoutEffect(() => {
+    const element = measureRef.current;
+    if (!element) return;
+    const line = Number.parseFloat(getComputedStyle(element).lineHeight);
+    if (!Number.isFinite(line) || line <= 0) return;
+    setOverflows(element.scrollHeight > line * QUESTION_LINE_CLAMP + 1);
+  }, [text, width, open]);
+  const clamped = overflows && !open;
+  return (
+    <div className="node-question-wrap">
+      <p ref={measureRef} className="node-question node-question-measure" aria-hidden>
+        <MarkedText text={text} query={query} sticker={sticker} />
+      </p>
+      <p
+        className={`node-question${clamped ? ' is-clamped' : ''}`}
+        style={clamped ? { WebkitLineClamp: QUESTION_LINE_CLAMP } : undefined}
+        title="空格或双击编辑"
+        onDoubleClick={(event) => {
+          event.stopPropagation();
+          onEdit();
+        }}
+      >
+        <MarkedText text={text} query={query} sticker={sticker} />
+      </p>
+      {overflows ? (
+        <button
+          type="button"
+          className="node-question-fold nodrag"
+          aria-expanded={open}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggle();
+          }}
+        >
+          {open ? '收起问题' : '展开问题'}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 /** 抓住卡片右缘左右拖，改的是这一张的宽度。 */
 function CardResize({ id }: { id: string }) {
