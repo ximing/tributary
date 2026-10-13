@@ -2,7 +2,18 @@ import { useEffect, useRef } from 'react';
 import { LoaderCircle } from 'lucide-react';
 
 /** 思考过程。生成中摊开并跟着滚；结束后收成一行，点开再看。 */
-export function ThinkingBlock({ text, live, roomy = false }: { text: string; live: boolean; roomy?: boolean }) {
+export function ThinkingBlock({
+  text,
+  live,
+  roomy = false,
+  startOpen = false,
+}: {
+  text: string;
+  live: boolean;
+  roomy?: boolean;
+  /** 结束后先摊开。详情不传，保持收起。 */
+  startOpen?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -29,12 +40,16 @@ export function ThinkingBlock({ text, live, roomy = false }: { text: string; liv
   return (
     <details
       className={`node-think${roomy ? ' is-roomy' : ''}`}
-      ref={(node) => {
-        if (node && roomy && node.dataset.opened !== '1') {
-          node.open = true;
-          node.dataset.opened = '1';
-        }
-      }}
+      ref={
+        startOpen
+          ? (node) => {
+              if (node && node.dataset.opened !== '1') {
+                node.open = true;
+                node.dataset.opened = '1';
+              }
+            }
+          : undefined
+      }
     >
       <summary>思考</summary>
       <div className="node-think-body">{text}</div>

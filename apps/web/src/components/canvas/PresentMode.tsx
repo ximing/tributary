@@ -71,7 +71,7 @@ export const PresentMode = observer(function PresentMode() {
             {node.note}
           </blockquote>
         ) : null}
-        <ThinkingBlock text={node.status === 'error' ? (node.thinking ?? '') : thinking} live={streaming && Boolean(thinking)} roomy />
+        <ThinkingBlock text={node.status === 'error' ? (node.thinking ?? '') : thinking} live={streaming && Boolean(thinking)} roomy startOpen />
         {node.status === 'error' ? (
           <p className="present-empty">{node.reply ?? '没有回答'}</p>
         ) : reply ? (
