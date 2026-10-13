@@ -109,6 +109,34 @@
   overflow-wrap: break-word;
 }
 
+.node-resize {
+  position: absolute;
+  z-index: 4;
+  top: 10px;
+  right: -4px;
+  width: 10px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.node-resize::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 16px;
+  margin: 6px auto;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+.node-card:hover .node-resize::before,
+.node-card.is-selected .node-resize::before,
+.node-resize.is-active::before {
+  background: var(--accent);
+}
+
 .node-question-input {
   display: block;
   width: 100%;

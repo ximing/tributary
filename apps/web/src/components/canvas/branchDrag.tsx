@@ -50,7 +50,7 @@ export function useBranchDrag(id: string, enabled: boolean) {
   return (event: ReactPointerEvent<HTMLElement>) => {
     if (!enabled || event.button !== 0) return;
     if (!(event.target instanceof Element)) return;
-    if (event.target.closest('button, a, textarea, input, .node-reply, .node-excerpt, .node-note, .node-bar')) return;
+    if (event.target.closest('button, a, textarea, input, .node-reply, .node-excerpt, .node-note, .node-bar, .node-resize')) return;
     const startX = event.clientX;
     const startY = event.clientY;
     let active = false;

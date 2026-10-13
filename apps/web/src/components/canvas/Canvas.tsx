@@ -83,6 +83,7 @@ export const Canvas = observer(function Canvas() {
   const nodeOrder = map.nodeOrder;
   const drafts = map.drafts;
   const heights = map.heights;
+  const widths = map.widths;
   const selectedId = map.selectedId;
   const focusId = map.focusId;
   const activeId = conversations.activeId;
@@ -122,11 +123,13 @@ export const Canvas = observer(function Canvas() {
 
   const flowNodes: Node[] = useMemo(() => {
     const heightOf = (id: string) => heights[id] ?? (isDraftId(id) ? DRAFT_NODE_HEIGHT : DEFAULT_NODE_HEIGHT);
+    const widthOf = (id: string) => (isDraftId(id) ? NODE_WIDTH : (widths[id] ?? NODE_WIDTH));
     const points = new Map(
-      layoutTree(tree, { heightOf, direction: settings.layout }).map((point) => [point.id, point]),
+      layoutTree(tree, { heightOf, widthOf, direction: settings.layout }).map((point) => [point.id, point]),
     );
     return tree.map((node) => {
       const point = points.get(node.id);
+      const width = widthOf(node.id);
       return {
         id: node.id,
         type: isDraftId(node.id) ? 'draft' : 'question',
@@ -134,13 +137,13 @@ export const Canvas = observer(function Canvas() {
         selected: node.id === selectedId,
         draggable: false,
         data: {},
-        style: { width: NODE_WIDTH },
+        style: { width },
         // 节点是受控的，测量结果不会写回。MiniMap 只认节点自身的尺寸，缺了就一个矩形都不画。
-        initialWidth: NODE_WIDTH,
+        initialWidth: width,
         initialHeight: heightOf(node.id),
       };
     });
-  }, [tree, heights, selectedId, settings.layout]);
+  }, [tree, heights, widths, selectedId, settings.layout]);
 
   const edges: Edge[] = useMemo(() => {
     const ids = new Set(tree.map((node) => node.id));

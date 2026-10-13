@@ -62,7 +62,8 @@ export const FocusHandler = observer(function FocusHandler() {
         return;
       }
       const height = node.measured?.height ?? DEFAULT_NODE_HEIGHT;
-      void reactFlow.setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + height / 2, {
+      const width = node.measured?.width ?? node.width ?? NODE_WIDTH;
+      void reactFlow.setCenter(node.position.x + width / 2, node.position.y + height / 2, {
         duration: 200,
         zoom: reactFlow.getZoom(),
       });

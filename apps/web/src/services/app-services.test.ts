@@ -1,5 +1,7 @@
 import { has, register, resolve, type Service } from '@rabjs/react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { readCardWidths } from '../lib/cardWidth.js';
+import { NODE_WIDTH } from '../workspace/map-model.js';
 import { SessionService } from './session.service.js';
 import { ConversationService } from '../workspace/conversation.service.js';
 import { MapService } from '../workspace/map.service.js';
@@ -138,6 +140,27 @@ describe('shipped web services', () => {
     expect(memory.has('tributary-map')).toBe(false);
 
     vi.mocked(api.listConversations).mockResolvedValue({ conversations: [] });
+    vi.unstubAllGlobals();
+  });
+
+  it('writes a dragged card width before the pointer is released', () => {
+    const memory = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => memory.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        memory.set(key, value);
+      },
+      removeItem: (key: string) => {
+        memory.delete(key);
+      },
+    });
+    const map = resolve(MapService);
+    map.setCardWidth('node-width', 420);
+    expect(map.widthOf('node-width')).toBe(420);
+    expect(readCardWidths()['node-width']).toBe(420);
+    map.setCardWidth('node-width', NODE_WIDTH);
+    expect(map.widthOf('node-width')).toBe(NODE_WIDTH);
+    expect(readCardWidths()['node-width']).toBeUndefined();
     vi.unstubAllGlobals();
   });
 });

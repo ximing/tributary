@@ -28,6 +28,7 @@ const EXTRA: { group: string; hint: string; label: string }[] = [
   { group: '视图', hint: '演示', label: '按树的顺序逐张看' },
   { group: '编辑', hint: '笔记里 ⌘ Enter', label: '保存笔记' },
   { group: '视图', hint: '点击空白', label: '取消选中' },
+  { group: '视图', hint: '拖卡片右缘', label: '调整卡片宽度' },
   { group: '视图', hint: '滑动', label: '移动画布' },
   { group: '视图', hint: '⌘ 滑动', label: '缩放画布' },
   { group: '视图', hint: '⇧ F', label: '适应视图' },

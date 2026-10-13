@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { observer, useService } from '@rabjs/react';
 import { createPortal } from 'react-dom';
 import { stickerOf } from '@tributary/domain';
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { Handle, Position, useReactFlow, type Node, type NodeProps } from '@xyflow/react';
 import { ChevronDown, CircleAlert, LoaderCircle, Maximize2, Plus, RefreshCw, Square } from 'lucide-react';
 import { useNodeSize } from '../../hooks/useNodeSize.js';
 import { markElement, splitHighlight } from '../../lib/findMark.js';
@@ -265,11 +265,61 @@ export const QuestionNodeView = observer(function QuestionNodeView({ id, selecte
       >
         <Plus size={13} strokeWidth={2.5} aria-hidden />
       </button>
+      <CardResize id={id} />
       <Handle type="source" position={tb ? Position.Bottom : Position.Right} />
       {askPop}
     </div>
   );
 });
+
+/** 抓住卡片右缘左右拖，改的是这一张的宽度。 */
+function CardResize({ id }: { id: string }) {
+  const map = useService(MapService);
+  const { getZoom } = useReactFlow();
+  const [active, setActive] = useState(false);
+  return (
+    <div
+      className={`node-resize nodrag${active ? ' is-active' : ''}`}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="拖动调整卡片宽度"
+      title="拖动调整卡片宽度"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const handle = event.currentTarget;
+        const pointerId = event.pointerId;
+        const startX = event.clientX;
+        const startWidth = map.widthOf(id);
+        const zoom = getZoom() || 1;
+        setActive(true);
+        try {
+          handle.setPointerCapture(pointerId);
+        } catch {
+          /* 捕获失败时仍靠窗口上的捕获阶段监听收尾 */
+        }
+        const widthAt = (clientX: number) => startWidth + (clientX - startX) / zoom;
+        const move = (ev: PointerEvent) => {
+          if (ev.pointerId !== pointerId) return;
+          map.setCardWidth(id, widthAt(ev.clientX));
+        };
+        const end = (ev: PointerEvent) => {
+          if (ev.pointerId !== pointerId) return;
+          window.removeEventListener('pointermove', move, true);
+          window.removeEventListener('pointerup', end, true);
+          window.removeEventListener('pointercancel', end, true);
+          setActive(false);
+          if (ev.type !== 'pointercancel') map.setCardWidth(id, widthAt(ev.clientX));
+        };
+        window.addEventListener('pointermove', move, true);
+        window.addEventListener('pointerup', end, true);
+        window.addEventListener('pointercancel', end, true);
+      }}
+    />
+  );
+}
 
 function captureAsk(host: HTMLElement, setAsk: (ask: { text: string; x: number; y: number } | null) => void) {
   const selection = window.getSelection();

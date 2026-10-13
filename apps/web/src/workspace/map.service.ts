@@ -44,6 +44,7 @@ import type { HistoryEntry, MapOp } from './history.js';
 import { pushHistory } from './history.js';
 import {
   DEFAULT_NODE_HEIGHT,
+  NODE_WIDTH,
   errorMessage,
   forestGroups,
   mergeServer,
@@ -59,6 +60,7 @@ import {
   type DragState,
   type DraftNode,
 } from './map-model.js';
+import { readCardWidths, writeCardWidths, clampCardWidth } from '../lib/cardWidth.js';
 import { ConversationService } from './conversation.service.js';
 import { ModelCatalogService } from './model-catalog.service.js';
 import { SearchService } from './search.service.js';
@@ -73,6 +75,8 @@ export class MapService extends Service {
   expandedReplies: Record<string, boolean> = {};
   drafts: DraftNode[] = [];
   heights: Record<string, number> = {};
+  /** 拖出来的卡片宽度。没记过的用默认宽度。 */
+  widths: Record<string, number> = readCardWidths();
   focusRequest: { id: string; at: number } | null = null;
   focusId: string | null = null;
   outlineOpen = false;
@@ -185,6 +189,7 @@ export class MapService extends Service {
     const layout = this.canvasPrefs.settings.layout;
     const points = layoutTree(tree, {
       heightOf: (id) => this.heights[id] ?? DEFAULT_NODE_HEIGHT,
+      widthOf: (id) => this.widths[id] ?? NODE_WIDTH,
       direction: layout,
     });
     const next = navigate(points, tree, this.selectedId, direction, layout);
@@ -197,6 +202,22 @@ export class MapService extends Service {
 
   toggleReply(id: string): void {
     this.expandedReplies = { ...this.expandedReplies, [id]: !this.expandedReplies[id] };
+  }
+
+  widthOf(id: string): number {
+    return this.widths[id] ?? NODE_WIDTH;
+  }
+
+  /** 拖动中就写入本地。松手事件可能到不了，不能只靠 pointerup。 */
+  setCardWidth(id: string, width: number): void {
+    const next = clampCardWidth(width);
+    const current = this.widths[id] ?? NODE_WIDTH;
+    if (current === next) return;
+    const widths = { ...this.widths };
+    if (next === NODE_WIDTH) delete widths[id];
+    else widths[id] = next;
+    this.widths = widths;
+    writeCardWidths(widths);
   }
 
   async toggleCollapse(id: string): Promise<void> {
@@ -890,14 +911,22 @@ export class MapService extends Service {
     const nodes = { ...this.nodes };
     const heights = { ...this.heights };
     const expandedReplies = { ...this.expandedReplies };
+    const widths = { ...this.widths };
+    let widthsChanged = false;
     for (const nid of removed) {
       delete nodes[nid];
       delete heights[nid];
       delete expandedReplies[nid];
+      if (nid in widths) {
+        delete widths[nid];
+        widthsChanged = true;
+      }
     }
     this.nodes = nodes;
     this.heights = heights;
     this.expandedReplies = expandedReplies;
+    this.widths = widths;
+    if (widthsChanged) writeCardWidths(widths);
     this.streams.forget(removed);
     this.nodeOrder = this.nodeOrder.filter((nid) => !removed.has(nid));
     this.drafts = this.drafts.filter((draft) => !draft.anchorId || !removed.has(draft.anchorId));
